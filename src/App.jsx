@@ -9,24 +9,25 @@ import { saveRun, getStats } from './utils/runHistory';
 import Ticker from './components/Ticker';
 
 // Trading Simulator Assets (US50 + Indices + Crypto)
-// Prices updated: Jan 22, 2026
+// Fallback prices - live prices auto-loaded from Yahoo Finance via useStocks
+// Last manual update: Feb 4, 2026
 const ASSETS = {
   // Indices
   NAS100: { name: 'Nasdaq 100', price: 22950, color: '#00d4ff' },
-  SP500: { name: 'S&P 500', price: 6920, color: '#ff6b6b' },
+  SP500: { name: 'S&P 500', price: 6874, color: '#ff6b6b' },
   US30: { name: 'Dow Jones', price: 48780, color: '#4ecdc4' },
   XAU: { name: 'Gold', price: 4933, color: '#FFD700' },
   XAG: { name: 'Silver', price: 92, color: '#A0A0A0' },
   // US50 - Top 50 by market cap
-  AAPL: { name: 'Apple', price: 247, color: '#555' },
+  AAPL: { name: 'Apple', price: 277, color: '#555' },
   MSFT: { name: 'Microsoft', price: 454, color: '#00A2ED' },
   GOOGL: { name: 'Google', price: 331, color: '#4285F4' },
   AMZN: { name: 'Amazon', price: 220, color: '#FF9900' },
-  NVDA: { name: 'Nvidia', price: 178, color: '#76B900' },
+  NVDA: { name: 'Nvidia', price: 174, color: '#76B900' },
   META: { name: 'Meta', price: 668, color: '#0668E1' },
   TSLA: { name: 'Tesla', price: 421, color: '#CC0000' },
   BRK: { name: 'Berkshire', price: 465, color: '#004080' },
-  LLY: { name: 'Eli Lilly', price: 785, color: '#DC143C' },
+  LLY: { name: 'Eli Lilly', price: 1098, color: '#DC143C' },
   V: { name: 'Visa', price: 305, color: '#1A1F71' },
   UNH: { name: 'UnitedHealth', price: 520, color: '#002677' },
   XOM: { name: 'Exxon', price: 115, color: '#FF0000' },
@@ -40,28 +41,28 @@ const ASSETS = {
   CVX: { name: 'Chevron', price: 165, color: '#0033A0' },
   MRK: { name: 'Merck', price: 98, color: '#0033A0' },
   COST: { name: 'Costco', price: 1020, color: '#0066B2' },
-  ABBV: { name: 'AbbVie', price: 195, color: '#071D49' },
+  ABBV: { name: 'AbbVie', price: 210, color: '#071D49' },
   KO: { name: 'Coca-Cola', price: 63, color: '#F40009' },
   PEP: { name: 'PepsiCo', price: 155, color: '#004B93' },
-  AMD: { name: 'AMD', price: 135, color: '#ED1C24' },
-  ADBE: { name: 'Adobe', price: 465, color: '#FF0000' },
+  AMD: { name: 'AMD', price: 204, color: '#ED1C24' },
+  ADBE: { name: 'Adobe', price: 279, color: '#FF0000' },
   CRM: { name: 'Salesforce', price: 340, color: '#00A1E0' },
   NFLX: { name: 'Netflix', price: 895, color: '#E50914' },
   CSCO: { name: 'Cisco', price: 58, color: '#049FD9' },
-  TMO: { name: 'Thermo Fisher', price: 520, color: '#00457C' },
+  TMO: { name: 'Thermo Fisher', price: 570, color: '#00457C' },
   ORCL: { name: 'Oracle', price: 185, color: '#C74634' },
   ACN: { name: 'Accenture', price: 385, color: '#A100FF' },
-  INTC: { name: 'Intel', price: 20, color: '#0071C5' },
+  INTC: { name: 'Intel', price: 49, color: '#0071C5' },
   NKE: { name: 'Nike', price: 72, color: '#000000' },
-  TXN: { name: 'Texas Instruments', price: 205, color: '#8B0000' },
-  QCOM: { name: 'Qualcomm', price: 155, color: '#3253DC' },
+  TXN: { name: 'Texas Instruments', price: 216, color: '#8B0000' },
+  QCOM: { name: 'Qualcomm', price: 152, color: '#3253DC' },
   PM: { name: 'Philip Morris', price: 140, color: '#003DA5' },
   DHR: { name: 'Danaher', price: 245, color: '#005EB8' },
   INTU: { name: 'Intuit', price: 695, color: '#393A56' },
   UNP: { name: 'Union Pacific', price: 235, color: '#004098' },
-  RTX: { name: 'Raytheon', price: 115, color: '#00205B' },
-  HON: { name: 'Honeywell', price: 225, color: '#DC1E35' },
-  SPGI: { name: 'S&P Global', price: 520, color: '#FF8200' },
+  RTX: { name: 'Raytheon', price: 195, color: '#00205B' },
+  HON: { name: 'Honeywell', price: 235, color: '#DC1E35' },
+  SPGI: { name: 'S&P Global', price: 466, color: '#FF8200' },
   // Popular stocks
   COIN: { name: 'Coinbase', price: 265, color: '#0052FF' },
   PLTR: { name: 'Palantir', price: 138, color: '#9d4edd' },
@@ -407,10 +408,16 @@ export default function App() {
     }
   }, [tick, running, position, balance, lastTraded, prices]);
 
+  // Get best available price for a symbol (live > static fallback)
+  const getLivePrice = useCallback((sym) => {
+    const live = liveStocksRef.current[sym];
+    return (live && typeof live.price === 'number') ? live.price : ASSETS[sym].price;
+  }, []);
+
   const reset = useCallback(() => {
     setBalance(1);
     setPosition(null);
-    setPrices(Object.fromEntries(SYMS.map(s => [s, [ASSETS[s].price]])));
+    setPrices(Object.fromEntries(SYMS.map(s => [s, [getLivePrice(s)]])));
     setTrades([]);
     setRunning(false);
     setTick(0);
@@ -520,16 +527,21 @@ export default function App() {
   // Chart - memoized for performance
   const W = 320, H = 120;
   const chartData = useMemo(() => {
-    const allNorm = SYMS.flatMap(s => prices[s].map(p => (p - ASSETS[s].price) / ASSETS[s].price));
+    // Normalize against first price in array (live price at sim start), not static ASSETS
+    const allNorm = SYMS.flatMap(s => {
+      const base = prices[s][0] || ASSETS[s].price;
+      return prices[s].map(p => (p - base) / base);
+    });
     const nMin = Math.min(...allNorm, -0.02);
     const nMax = Math.max(...allNorm, 0.02);
     const toY = v => H - ((v - nMin) / (nMax - nMin || 0.01)) * H;
 
     const paths = {};
     SYMS.forEach(sym => {
+      const base = prices[sym][0] || ASSETS[sym].price;
       if (prices[sym].length > 1) {
         paths[sym] = prices[sym].map((p, i) => {
-          const norm = (p - ASSETS[sym].price) / ASSETS[sym].price;
+          const norm = (p - base) / base;
           return `${i ? 'L' : 'M'} ${(i / 99) * W} ${toY(norm)}`;
         }).join(' ');
       }
@@ -542,7 +554,8 @@ export default function App() {
   const makePath = sym => {
     // Fallback for unmemoized case
     return chartPaths[sym] || prices[sym].map((p, i) => {
-      const norm = (p - ASSETS[sym].price) / ASSETS[sym].price;
+      const base = prices[sym][0] || ASSETS[sym].price;
+      const norm = (p - base) / base;
       return `${i ? 'L' : 'M'} ${(i / 99) * W} ${toY(norm)}`;
     }).join(' ');
   };

@@ -204,7 +204,7 @@ export default function App() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   const { prices: liveAssets, lastUpdated } = useLivePrices(defaultAssets);
-  const { markets, loading: pmLoading, error: pmError, refetch: refetchPm } = usePolymarket();
+  const { markets, loading: pmLoading, error: pmError } = usePolymarket();
   const { stocks, error: stocksError } = useStocks();
 
   // Sync live stock prices into ref for simulator access
@@ -884,10 +884,6 @@ export default function App() {
 
         {/* POLYMARKET SECTION */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ flex: 1 }} />
-            <button onClick={refetchPm} style={{ padding: '4px 8px', borderRadius: 8, border: `1px solid ${t.border}`, background: 'transparent', color: t.textSecondary, fontSize: 10, cursor: 'pointer' }}>↻ Refresh</button>
-          </div>
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto' }}>
             {MARKET_CATEGORIES.map(cat => (

@@ -73,63 +73,59 @@ const FALLBACK_DATA = {
   'CL=F': { symbol: 'CL=F', price: 73, changePercent: -0.55 },
 };
 
+// Parse stock data from either Vercel serverless or Yahoo raw response format
+const parseStockData = (raw) => {
+  const data = Array.isArray(raw) ? raw : (raw?.quoteResponse?.result ?? []);
+  if (!Array.isArray(data) || data.length === 0) return null;
+
+  const stockMap = {};
+  data.forEach(s => {
+    const symbol = s.symbol;
+    const price = s.price ?? s.regularMarketPrice;
+    const change = s.change ?? s.regularMarketChange;
+    const changePercent = s.changePercent ?? s.regularMarketChangePercent;
+    const volume = s.volume ?? s.regularMarketVolume;
+
+    if (symbol && typeof price === 'number') {
+      stockMap[symbol] = {
+        symbol,
+        price,
+        change: change ?? 0,
+        changePercent: changePercent ?? 0,
+        volume: volume ?? 0,
+        high52: s.fiftyTwoWeekHigh ?? s.high52 ?? price,
+        low52: s.fiftyTwoWeekLow ?? s.low52 ?? price,
+      };
+    }
+  });
+  return Object.keys(stockMap).length > 0 ? stockMap : null;
+};
+
 export function useStocks(symbols = DEFAULT_SYMBOLS) {
   const [stocks, setStocks] = useState(FALLBACK_DATA);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const retryCountRef = useRef(0);
+  const seededFromCache = useRef(false);
 
   const fetchStocks = useCallback(async () => {
     try {
-      // Validate symbols
       if (!Array.isArray(symbols) || symbols.length === 0) {
         throw new Error('Invalid symbols: must be a non-empty array');
       }
 
       const raw = await fetchWithRetry(`/api/stocks?symbols=${symbols.join(',')}`);
-
-      // Handle both formats: flat array (Vercel serverless) or Yahoo raw response (dev proxy)
-      const data = Array.isArray(raw) ? raw : (raw?.quoteResponse?.result ?? []);
-      if (!Array.isArray(data) || data.length === 0) {
-        throw new Error('Invalid response format or empty result');
-      }
-
-      // Map to stock objects with validation, normalizing Yahoo raw field names
-      const stockMap = {};
-      data.forEach(s => {
-        const symbol = s.symbol;
-        const price = s.price ?? s.regularMarketPrice;
-        const change = s.change ?? s.regularMarketChange;
-        const changePercent = s.changePercent ?? s.regularMarketChangePercent;
-        const volume = s.volume ?? s.regularMarketVolume;
-
-        if (symbol && typeof price === 'number') {
-          stockMap[symbol] = {
-            symbol,
-            price,
-            change: change ?? 0,
-            changePercent: changePercent ?? 0,
-            volume: volume ?? 0,
-            high52: s.fiftyTwoWeekHigh ?? s.high52 ?? price,
-            low52: s.fiftyTwoWeekLow ?? s.low52 ?? price,
-          };
-        }
-      });
-
-      // Check if we got any valid data
-      if (Object.keys(stockMap).length === 0) {
-        throw new Error('No valid stock data received');
-      }
+      const stockMap = parseStockData(raw);
+      if (!stockMap) throw new Error('No valid stock data received');
 
       setStocks(stockMap);
       setError(null);
-      retryCountRef.current = 0; // Reset retry count on success
+      retryCountRef.current = 0;
     } catch (err) {
       setError(err.message);
       console.error('Stock fetch error:', err);
       retryCountRef.current += 1;
 
-      // Use fallback data on error if we don't have any stocks loaded
       if (Object.keys(stocks).length === 0) {
         console.warn('Using fallback stock data');
         setStocks(FALLBACK_DATA);
@@ -139,9 +135,29 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
     }
   }, [symbols.join(',')]);
 
+  // Seed from Blob cache first (instant load), then fetch live data
   useEffect(() => {
+    const seedFromCache = async () => {
+      try {
+        const res = await fetch('/api/latest');
+        if (!res.ok) return;
+        const { cached, data } = await res.json();
+        if (cached && data?.stocks?.length > 0 && !seededFromCache.current) {
+          seededFromCache.current = true;
+          const stockMap = parseStockData(data.stocks);
+          if (stockMap) {
+            setStocks(stockMap);
+            setLoading(false);
+          }
+        }
+      } catch {
+        // Cache miss is fine
+      }
+    };
+
+    seedFromCache();
     fetchStocks();
-    const interval = setInterval(fetchStocks, 60000); // Refresh every 60s
+    const interval = setInterval(fetchStocks, 60000);
     return () => clearInterval(interval);
   }, [fetchStocks]);
 

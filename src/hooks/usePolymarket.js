@@ -78,11 +78,52 @@ const fetchWithRetry = async (url, maxRetries = 3, baseDelay = 1000) => {
   throw lastError;
 };
 
+// Transform raw Polymarket API data to our format
+const transformMarkets = (data) => {
+  if (!Array.isArray(data)) return [];
+  return data
+    .filter(m => m && m.id && m.slug && m.question)
+    .map(m => {
+      let prob = null;
+      if (m.outcomePrices) {
+        try {
+          const prices = JSON.parse(m.outcomePrices);
+          prob = parseFloat(prices[0]);
+        } catch(e) {
+          console.warn(`Failed to parse outcomePrices for ${m.slug}:`, e.message);
+        }
+      }
+      if (!prob && m.bestBid) prob = parseFloat(m.bestBid);
+      if (!prob && m.outcomes?.[0]?.price) prob = parseFloat(m.outcomes[0].price);
+
+      return {
+        id: m.id,
+        slug: m.slug,
+        question: m.question,
+        description: m.description || '',
+        category: m.category || 'General',
+        endDate: m.endDate,
+        volume24h: parseFloat(m.volume24hr) || 0,
+        volumeTotal: parseFloat(m.volume) || 0,
+        liquidity: parseFloat(m.liquidity) || 0,
+        outcomes: m.outcomes || [],
+        bestBid: m.bestBid ? parseFloat(m.bestBid) : null,
+        bestAsk: m.bestAsk ? parseFloat(m.bestAsk) : null,
+        probability: prob,
+        change24h: m.change24hr ? parseFloat(m.change24hr) : null,
+        image: m.image,
+        active: m.active,
+      };
+    })
+    .sort((a, b) => (b.probability || 0) - (a.probability || 0));
+};
+
 export function usePolymarket() {
   const [markets, setMarkets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const retryCountRef = useRef(0);
+  const seededFromCache = useRef(false);
 
   const fetchMarkets = useCallback(async () => {
     try {
@@ -90,69 +131,44 @@ export function usePolymarket() {
 
       const data = await fetchWithRetry(`${POLYMARKET_API}/markets`);
 
-      // Validate response
       if (!Array.isArray(data)) {
         throw new Error('Invalid response format: expected array');
       }
 
-      // Transform to our format with validation
-      const transformed = data
-        .filter(m => m && m.id && m.slug && m.question) // Filter out invalid markets
-        .map(m => {
-          // Try multiple ways to get probability
-          let prob = null;
-          if (m.outcomePrices) {
-            try {
-              const prices = JSON.parse(m.outcomePrices);
-              prob = parseFloat(prices[0]);
-            } catch(e) {
-              console.warn(`Failed to parse outcomePrices for ${m.slug}:`, e.message);
-            }
-          }
-          if (!prob && m.bestBid) prob = parseFloat(m.bestBid);
-          if (!prob && m.outcomes?.[0]?.price) prob = parseFloat(m.outcomes[0].price);
-
-          return {
-            id: m.id,
-            slug: m.slug,
-            question: m.question,
-            description: m.description || '',
-            category: m.category || 'General',
-            endDate: m.endDate,
-            volume24h: parseFloat(m.volume24hr) || 0,
-            volumeTotal: parseFloat(m.volume) || 0,
-            liquidity: parseFloat(m.liquidity) || 0,
-            outcomes: m.outcomes || [],
-            bestBid: m.bestBid ? parseFloat(m.bestBid) : null,
-            bestAsk: m.bestAsk ? parseFloat(m.bestAsk) : null,
-            probability: prob,
-            change24h: m.change24hr ? parseFloat(m.change24hr) : null,
-            image: m.image,
-            active: m.active,
-          };
-        });
-
-      // Sort by probability (highest first)
-      transformed.sort((a, b) => (b.probability || 0) - (a.probability || 0));
-
+      const transformed = transformMarkets(data);
       setMarkets(transformed);
       setError(null);
-      retryCountRef.current = 0; // Reset retry count on success
+      retryCountRef.current = 0;
     } catch (err) {
       setError(err.message);
       console.error('Polymarket fetch error:', err);
       retryCountRef.current += 1;
-
-      // Keep old data on error
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch on mount and every 30 seconds
+  // Seed from Blob cache first (instant load), then fetch live data
   useEffect(() => {
+    const seedFromCache = async () => {
+      try {
+        const res = await fetch('/api/latest');
+        if (!res.ok) return;
+        const { cached, data } = await res.json();
+        if (cached && data?.markets?.length > 0 && !seededFromCache.current) {
+          seededFromCache.current = true;
+          const transformed = transformMarkets(data.markets);
+          setMarkets(transformed);
+          setLoading(false);
+        }
+      } catch {
+        // Cache miss is fine, live fetch will handle it
+      }
+    };
+
+    seedFromCache();
     fetchMarkets();
-    const interval = setInterval(fetchMarkets, 30000); // Refresh every 30s
+    const interval = setInterval(fetchMarkets, 30000);
     return () => clearInterval(interval);
   }, [fetchMarkets]);
 

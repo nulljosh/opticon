@@ -4,7 +4,7 @@
 
 **Live Demo**: https://bread-m0zrli7pf-nulljosh-9577s-projects.vercel.app | **Local**: `npm run dev` → http://localhost:5173
 
-![Workflow Diagram](docs/workflow.svg)
+<img src="docs/workflow.svg" alt="Workflow Diagram" />
 
 ---
 

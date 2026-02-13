@@ -1027,8 +1027,8 @@ export default function App() {
         {/* Footer */}
         <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 10, color: t.textTertiary }}>
           &copy; 2026 &middot;{' '}
-          <a href="https://github.com/nulljosh/bread" target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'none' }}>
-            GitHub
+          <a href="https://heyitsmejosh.com" target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'none' }}>
+            Portfolio
           </a>
         </div>
       </div>

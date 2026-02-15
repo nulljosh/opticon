@@ -10,6 +10,8 @@ import { calculateKelly, detectEdge } from './utils/trading';
 import { tldr } from './utils/helpers';
 import { BlinkingDot, StatusBar, Card } from './components/ui';
 import Ticker from './components/Ticker';
+import PricingPage from './components/PricingPage';
+import { useSubscription } from './hooks/useSubscription';
 
 // Trading Simulator Assets (US50 + Indices + Crypto)
 // Fallback prices - live prices auto-loaded from Yahoo Finance via useStocks
@@ -95,6 +97,8 @@ export default function App() {
   const [dark, setDark] = useState(true);
   const t = getTheme(dark);
   const font = '-apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  const [showPricing, setShowPricing] = useState(false);
+  const { isPro, isFree } = useSubscription();
 
   // Fibonacci levels from $1 to $1B
   const FIB_LEVELS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000];
@@ -715,6 +719,24 @@ export default function App() {
           >
             MACRO
           </button>
+          {isFree && (
+            <button
+              onClick={() => setShowPricing(true)}
+              style={{
+                background: t.blue,
+                border: 'none',
+                borderRadius: 6,
+                padding: '5px 10px',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background 0.15s'
+              }}
+            >
+              UPGRADE
+            </button>
+          )}
           <button
             onClick={() => setDark(!dark)}
             aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -1041,6 +1063,9 @@ export default function App() {
           </a>
         </div>
       </div>
+
+      {/* Pricing Modal */}
+      {showPricing && <PricingPage dark={dark} t={t} onClose={() => setShowPricing(false)} />}
     </div>
   );
 }

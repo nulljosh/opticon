@@ -1,18 +1,18 @@
-# Bread - Claude Development Guide
+# Rise - Claude Development Guide
 
 ## ⚠️ DEPLOYMENT REMINDER
 **IMPORTANT:** When testing deployments, check the RIGHT URL:
 - **Vercel (Primary):** https://rise-production.vercel.app/ (production)
-- **GitHub Pages:** https://heyitsmejosh.com/bread/ (static hosting, uses Vercel APIs)
+- **GitHub Pages:** https://heyitsmejosh.com/rise/ (static hosting, uses Vercel APIs)
 
 **Don't waste tokens checking GitHub Pages when you mean to check Vercel!**
 
-Note: Individual deployment URLs (bread-xxxxx-nulljosh.vercel.app) change each deploy - use the bread-alpha.vercel.app alias instead.
+Note: Individual deployment URLs (rise-xxxxx-nulljosh.vercel.app) change each deploy - use the rise-production.vercel.app alias instead.
 
 ---
 
 ## Project Vision
-Bread is a high-alpha, low-latency financial terminal designed for extreme efficiency. It combines prediction markets (Polymarket, Kalshi) with quantitative simulations and live market data into a unified dashboard optimized for minimal memory footprint and bandwidth usage.
+Rise is a high-alpha, low-latency financial terminal designed for extreme efficiency. It combines prediction markets (Polymarket, Kalshi) with quantitative simulations and live market data into a unified dashboard optimized for minimal memory footprint and bandwidth usage.
 
 ## Architecture Goals
 - **Memory**: Target <10MB runtime footprint ("The 10MB Dashboard")
@@ -305,7 +305,7 @@ git push
 ## Broker Integration Roadmap
 
 ### TradingView Integration
-- **Approach**: TradingView Webhooks → Bread API → Broker
+- **Approach**: TradingView Webhooks → Rise API → Broker
 - **Flow**: Alert trigger → REST endpoint → Order execution
 - **Latency**: ~500ms end-to-end
 
@@ -445,7 +445,7 @@ Most financial terminals are slow, bloated, and expensive:
 - **MetaTrader**: 200MB+ install, cluttered interface, Windows-only
 - **TradingView**: 50MB+ page load, slow charts, premium paywalls
 
-Bread is different:
+Rise is different:
 - **Memory**: <10MB runtime footprint
 - **Bundle**: 233KB (target <200KB)
 - **Speed**: Sub-60s to run $1 → $1B simulation
@@ -472,7 +472,7 @@ Markets are boring 95% of the time. UI should reflect this.
 - Contrarian mindset (fade the hype)
 
 **3. Education Over Gambling**
-Bread is a simulator, not a casino.
+Rise is a simulator, not a casino.
 
 - Show win rate, max drawdown, stopped out count
 - No gamified losses or "try again" dopamine
@@ -487,7 +487,7 @@ Code is open source. Algorithms are documented. No black boxes.
 ## Vercel Blob Caching
 
 ### Overview
-Bread uses Vercel Blob Storage to cache market data for fast retrieval and reduced API load.
+Rise uses Vercel Blob Storage to cache market data for fast retrieval and reduced API load.
 
 **Architecture:**
 - **Cron job** (`/api/cron`) — Runs daily at 8 AM UTC
@@ -573,7 +573,7 @@ fetch('/api/latest')
 
 **Vercel Blob Storage:**
 - First 10 GB: Free
-- Bread usage: ~50KB cache file, 1 write/day
+- Rise usage: ~50KB cache file, 1 write/day
 - **Cost:** Essentially free (within free tier)
 
 ---

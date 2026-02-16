@@ -18,7 +18,7 @@
 
 ## Overview
 
-Bread is a high-performance financial terminal that combines:
+Rise is a high-performance financial terminal that combines:
 - **Trading Simulator**: $100 → $10K challenge with 13 assets (indices, metals, tech stocks)
 - **Prediction Markets**: Real-time Polymarket integration with 90%+ probability filters
 - **Monte Carlo Analysis**: Auto-parameterized simulations with bull/base/bear scenarios

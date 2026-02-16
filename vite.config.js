@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   // No base path for Vercel (deploys at root)
-  // For GitHub Pages deployment, build with base: '/bread/' manually
+  // For GitHub Pages deployment, build with base: '/rise/' manually
   plugins: [react()],
   server: {
     proxy: {

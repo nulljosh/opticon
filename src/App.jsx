@@ -100,8 +100,17 @@ export default function App() {
   const [showPricing, setShowPricing] = useState(false);
   const { isPro, isFree } = useSubscription();
 
-  // Fibonacci levels from $1 to $1B
-  const FIB_LEVELS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000];
+  // Fibonacci levels from $1 to $10T
+  const FIB_LEVELS = [
+    1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000,
+    10000, 20000, 50000, 100000, 200000, 500000, 1000000,
+    2000000, 5000000, 10000000, 20000000, 50000000,
+    100000000, 200000000, 500000000, 1000000000,
+    // $1B to $10T
+    2000000000, 5000000000, 10000000000, 20000000000, 50000000000,
+    100000000000, 200000000000, 500000000000, 1000000000000,
+    2000000000000, 5000000000000, 10000000000000
+  ];
 
   // Trading Simulator State
   const [balance, setBalance] = useState(1);
@@ -125,6 +134,11 @@ export default function App() {
   const [pmTrades, setPmTrades] = useState([]);
   const lastPmScan = useRef(0);
   const [pmBalance, setPmBalance] = useState(0); // Track prediction market P&L separately
+
+  // Milestone state management
+  const [pausedAtMilestone, setPausedAtMilestone] = useState(false);
+  const [currentMilestone, setCurrentMilestone] = useState(1e9); // Start at $1B
+  const [nextMilestone, setNextMilestone] = useState(null);
 
   // Animation refs for smooth 60fps rendering
   const animationRef = useRef(null);
@@ -291,24 +305,31 @@ export default function App() {
     }
 
     if (current >= position.target) {
-      const target = targetTrillion ? 1000000000000 : 1000000000;
       const newBalance = balance + pnl;
 
-      // Cap balance at target to prevent overshooting
-      const cappedBalance = Math.min(newBalance, target);
-      const cappedPnl = cappedBalance - balance;
-
-      setBalance(cappedBalance);
+      // Don't cap balance anymore - let it run past milestones
+      setBalance(newBalance);
       setTrades(t => {
-        const updated = [...t, { type: 'WIN', sym: position.sym, pnl: cappedPnl.toFixed(2) }];
+        const updated = [...t, { type: 'WIN', sym: position.sym, pnl: pnl.toFixed(2) }];
         return updated.length > 100 ? updated.slice(-100) : updated;
       });
-      setTradeStats(s => ({ ...s, wins: { ...s.wins, [position.sym]: (s.wins[position.sym] || 0) + cappedPnl } }));
+      setTradeStats(s => ({ ...s, wins: { ...s.wins, [position.sym]: (s.wins[position.sym] || 0) + pnl } }));
       setPosition(null);
 
-      // Stop immediately if we hit target
-      if (cappedBalance >= target) {
+      // Check if reached current milestone
+      if (newBalance >= currentMilestone && !pausedAtMilestone) {
         setRunning(false);
+        setPausedAtMilestone(true);
+        const exits = trades.filter(t => t.pnl);
+        const wins = exits.filter(t => parseFloat(t.pnl) > 0);
+        saveRun({
+          finalBalance: newBalance,
+          won: false, // Not final win, just checkpoint
+          duration: (Date.now() - startTime) / 1000,
+          tradeCount: exits.length,
+          tradeWinRate: exits.length ? (wins.length / exits.length * 100) : 0,
+        });
+        setRunStats(getStats());
       }
       return;
     }
@@ -319,9 +340,14 @@ export default function App() {
   }, [tick]);
 
   useEffect(() => {
-    const target = targetTrillion ? 1000000000000 : 1000000000;
-    // Stop opening new positions if we've already won
-    if (!running || position || balance <= 0.5 || balance >= target) return;
+    // Stop opening new positions if paused at milestone
+    if (!running || position || balance <= 0.5 || pausedAtMilestone) return;
+
+    // Update next milestone tracker
+    const nextMile = FIB_LEVELS.find(level => level > balance);
+    if (nextMile && nextMile !== nextMilestone) {
+      setNextMilestone(nextMile);
+    }
 
     let best = null;
     SYMS.forEach(sym => {
@@ -432,6 +458,21 @@ export default function App() {
     return (live && typeof live.price === 'number') ? live.price : ASSETS[sym].price;
   }, []);
 
+  const handleContinue = useCallback(() => {
+    const nextMile = FIB_LEVELS.find(level => level > balance);
+    if (nextMile) {
+      setCurrentMilestone(nextMile);
+      setPausedAtMilestone(false);
+      setRunning(true);
+    } else {
+      // Reached end of FIB_LEVELS, continue with 2x pattern
+      const newLevel = currentMilestone * 2;
+      setCurrentMilestone(newLevel);
+      setPausedAtMilestone(false);
+      setRunning(true);
+    }
+  }, [balance, currentMilestone]);
+
   const reset = useCallback(() => {
     setBalance(1);
     setPosition(null);
@@ -445,6 +486,9 @@ export default function App() {
     setElapsedTime(0);
     setPmTrades([]);
     setPmBalance(0);
+    setPausedAtMilestone(false);
+    setCurrentMilestone(1e9);
+    setNextMilestone(null);
     trends.current = Object.fromEntries(SYMS.map(s => [s, 0]));
     cooldownSyms.current = {};
   }, []);

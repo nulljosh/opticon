@@ -2,7 +2,7 @@
 
 > Low-latency prediction markets + trading simulator + quantitative analysis. Built for speed, optimized for efficiency.
 
-**Live Demo**: https://rise-production.vercel.app | **GitHub Pages**: https://nulljosh.github.io/rise/ | **Local**: `npm run dev` → http://localhost:5173
+**Live Demo**: https://rise-production.vercel.app | **GitHub Pages**: https://heyitsmejosh.com/rise/ | **Local**: `npm run dev` → http://localhost:5173
 
 ## Current Status (2026-02-15)
 
@@ -28,10 +28,10 @@ Rise is a high-performance financial terminal that combines:
 
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
-| Memory Footprint | <10MB | ~177KB gzip |  |
-| API Latency | <100ms | ~200ms |  |
-| Bundle Size | <500KB | 233KB |  |
-| React Warnings | 0 | 0 |  |
+| Memory Footprint | <10MB | ~177KB gzip | Yes |
+| API Latency | <100ms | ~200ms | No |
+| Bundle Size | <500KB | 233KB | Yes |
+| React Warnings | 0 | 0 | Yes |
 
 ---
 
@@ -121,8 +121,8 @@ Rise offers a **Free** tier and a **Pro** tier at **$49/month** via Stripe:
 
 ```bash
 # Clone
-git clone https://github.com/nulljosh/stonks.git
-cd stonks
+git clone https://github.com/nulljosh/rise.git
+cd rise
 
 # Install dependencies
 npm install
@@ -197,7 +197,7 @@ npm run test:speed
 #### Option 1: GitHub Integration (Easiest)
 1. Push code to GitHub (already done)
 2. Go to [vercel.com](https://vercel.com)
-3. Import GitHub repo: `nulljosh/stonks`
+3. Import GitHub repo: `nulljosh/rise`
 4. Vercel auto-detects Vite config
 5. Deploy → Live URL in 30 seconds
 
@@ -228,7 +228,7 @@ npm run build
 ## Project Structure
 
 ```
-stonks/
+rise/
 ├── api/                    # Backend API integrations
 │   ├── commodities.js      # Gold, silver, oil prices
 │   ├── history.js          # Historical price data (Yahoo)
@@ -532,8 +532,8 @@ Built by [@nulljosh](https://github.com/nulljosh) with Claude Sonnet 4.5
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/nulljosh/stonks/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/nulljosh/stonks/discussions)
+- **Issues**: [GitHub Issues](https://github.com/nulljosh/rise/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/nulljosh/rise/discussions)
 - **Twitter**: [@trommatic](https://twitter.com/trommatic)
 
 ---

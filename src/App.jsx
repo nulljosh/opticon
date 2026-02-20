@@ -1177,7 +1177,7 @@ const reset = useCallback(() => {
               {filteredMarkets.map(m => (
                 <a
                   key={m.id}
-                  href={`https://polymarket.com/event/${m.slug}`}
+                  href={`https://polymarket.com/event/${m.eventSlug || m.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ textDecoration: 'none', color: 'inherit' }}
@@ -1257,7 +1257,7 @@ const reset = useCallback(() => {
             </div>
             {isMobile && (
               <a
-                href={`https://polymarket.com/event/${market.slug}`}
+                href={`https://polymarket.com/event/${market.eventSlug || market.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ display: 'block', fontSize: 11, color: t.cyan, marginTop: 10, textDecoration: 'underline' }}

@@ -40,12 +40,18 @@ export default async function handler(req, res) {
     }
 
     // Filter out markets with missing critical data
-    const validMarkets = data.filter(market =>
-      market &&
-      market.id &&
-      market.question &&
-      market.slug
-    );
+    const validMarkets = data
+      .filter(market =>
+        market &&
+        market.id &&
+        market.question &&
+        market.slug
+      )
+      .map(market => ({
+        ...market,
+        // Use the event slug for the Polymarket URL (market.slug is an internal ID)
+        eventSlug: market.events?.[0]?.slug || market.slug
+      }));
 
     if (validMarkets.length < data.length) {
       console.warn(`Filtered out ${data.length - validMarkets.length} invalid markets`);

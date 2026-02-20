@@ -114,6 +114,8 @@ const transformMarkets = (data) => {
         change24h: m.change24hr ? parseFloat(m.change24hr) : null,
         image: m.image,
         active: m.active,
+        // Use event slug for Polymarket URL — market.slug is an internal ID, not the URL slug
+        eventSlug: m.eventSlug || m.events?.[0]?.slug || m.slug,
       };
     })
     .sort((a, b) => (b.probability || 0) - (a.probability || 0));

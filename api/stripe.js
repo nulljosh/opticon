@@ -40,12 +40,15 @@ export default async function handler(req, res) {
     try {
       const { priceId } = req.body;
       if (!priceId) return res.status(400).json({ error: 'Price ID required' });
+      const baseUrl = process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : 'https://rise-production.vercel.app';
       const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
         payment_method_types: ['card'],
         line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${process.env.VERCEL_URL || 'https://rise-production.vercel.app'}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.VERCEL_URL || 'https://rise-production.vercel.app'}/pricing`,
+        success_url: `${baseUrl}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/pricing`,
         allow_promotion_codes: true,
       });
       return res.status(200).json({ sessionId: session.id, url: session.url });
@@ -60,9 +63,12 @@ export default async function handler(req, res) {
     try {
       const { customerId: cid } = req.body;
       if (!cid) return res.status(400).json({ error: 'Customer ID required' });
+      const baseUrl = process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : 'https://rise-production.vercel.app';
       const session = await stripe.billingPortal.sessions.create({
         customer: cid,
-        return_url: process.env.VERCEL_URL || 'https://rise-production.vercel.app',
+        return_url: baseUrl,
       });
       return res.status(200).json({ url: session.url });
     } catch (err) {

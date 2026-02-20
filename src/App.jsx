@@ -134,6 +134,8 @@ export default function App() {
   const [pmTrades, setPmTrades] = useState([]);
   const lastPmScan = useRef(0);
   const [pmBalance, setPmBalance] = useState(0); // Track prediction market P&L separately
+  const [showPmEdges, setShowPmEdges] = useState(true);
+  const lastPmBetRef = useRef({}); // { marketId: timestamp }
 
   // Milestone state management
   const [currentMilestone, setCurrentMilestone] = useState(1e9); // Start at $1B
@@ -192,6 +194,7 @@ export default function App() {
 
           setBalance(b => Math.max(0.5, b + payout));
           setPmBalance(pb => pb + payout);
+          lastPmBetRef.current[opp.id || opp.slug] = Date.now();
           setPmTrades(prev => {
             const updated = [...prev, {
               type: win ? 'PM_WIN' : 'PM_LOSS',
@@ -204,11 +207,11 @@ export default function App() {
             return updated.length > 50 ? updated.slice(-50) : updated;
           });
 
-          // Also add to main trades log for combined history
+          // Add to main trades log with [PM] prefix
           setTrades(t => {
             const updated = [...t, {
               type: win ? 'PM_WIN' : 'PM_LOSS',
-              sym: `PM:${opp.side}`,
+              sym: `[PM] ${opp.side}`,
               pnl: payout.toFixed(2)
             }];
             return updated.length > 100 ? updated.slice(-100) : updated;
@@ -716,6 +719,14 @@ const reset = useCallback(() => {
     return filtered;
   }, [markets, pmCategory, showHighProb]);
 
+  // Live high-probability PM markets for Situation Monitor
+  const pmEdges = useMemo(() => {
+    return markets
+      .filter(m => m.probability >= 0.85 || m.probability <= 0.15)
+      .sort((a, b) => Math.max(b.probability, 1 - b.probability) - Math.max(a.probability, 1 - a.probability))
+      .slice(0, 8);
+  }, [markets]);
+
   // SIMULATIONS DISABLED - NOT NEEDED FOR POLYMARKET VIEW
   // const assetToSymbol = {
   //   btc: 'BTC-USD', eth: 'ETH-USD', gold: 'GC=F', silver: 'SI=F', oil: 'CL=F', nas100: 'NQ=F', us500: 'ES=F',
@@ -1002,6 +1013,46 @@ const reset = useCallback(() => {
                 <div>
                   <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: t.textTertiary, marginBottom: 3 }}>ALL-TIME</div>
                   <div style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{runStats.wins}W / {runStats.losses}L</div>
+                </div>
+              )}
+            </div>
+
+            {/* PM Live Edges (collapsible) */}
+            <div style={{ background: t.surface, borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
+              <button
+                onClick={() => setShowPmEdges(!showPmEdges)}
+                style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: 'none', display: 'flex', justifyContent: 'space-between', fontFamily: font, fontSize: 11, color: t.textTertiary, cursor: 'pointer' }}
+              >
+                <span>polymarket edges ({pmEdges.length})</span>
+                <span>{showPmEdges ? '−' : '+'}</span>
+              </button>
+              {showPmEdges && (
+                <div style={{ padding: '0 12px 12px', maxHeight: 200, overflowY: 'auto' }}>
+                  {pmEdges.length === 0 ? (
+                    <div style={{ color: t.textTertiary, fontSize: 11, textAlign: 'center', padding: 8 }}>no edges &gt;85%</div>
+                  ) : pmEdges.map((m, i) => {
+                    const isYes = m.probability >= 0.85;
+                    const dispProb = isYes ? m.probability : 1 - m.probability;
+                    const betTs = lastPmBetRef.current[m.id || m.slug];
+                    const msSinceBet = betTs ? Date.now() - betTs : null;
+                    return (
+                      <div key={m.id || i} style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '6px 0', borderBottom: `1px solid ${t.border}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                          <span style={{ fontSize: 10, color: t.text, flex: 1, lineHeight: 1.3 }}>{m.question?.length > 60 ? m.question.slice(0, 60) + '…' : m.question}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: isYes ? t.green : t.red, whiteSpace: 'nowrap' }}>
+                            {isYes ? 'YES' : 'NO'} {(dispProb * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <div style={{ flex: 1, height: 3, background: t.border, borderRadius: 2 }}>
+                            <div style={{ width: `${dispProb * 100}%`, height: '100%', background: isYes ? t.green : t.red, borderRadius: 2 }} />
+                          </div>
+                          <span style={{ fontSize: 9, color: t.textTertiary }}>Vol ${((m.volume24h || 0) / 1000).toFixed(0)}K</span>
+                          {betTs && <span style={{ fontSize: 9, color: t.cyan }}>bet {msSinceBet < 60000 ? `${Math.round(msSinceBet/1000)}s` : `${Math.round(msSinceBet/60000)}m`} ago</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -17,5 +17,5 @@ export function detectEdge(market) {
   const side = yesProb > noProb ? 'YES' : 'NO';
   const prob = Math.max(yesProb, noProb);
 
-  return { edge, side, prob, hasEdge: edge > 0.4 }; // >90% = edge
+  return { edge, side, prob, hasEdge: edge > 0.35 }; // >85% = edge
 }

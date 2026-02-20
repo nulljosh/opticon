@@ -99,6 +99,20 @@ function runSim(target = 1e9) {
       const strength = (current - avg) / avg;
       const minStrength = balance < 2 ? 0.008 : balance < 10 ? 0.009 : balance < 100 ? 0.010 : 0.012;
 
+      // Trend consistency: need at least 5 up-bars in last 10
+      const risingBars = recent.filter((price, i) => i > 0 && price > recent[i - 1]).length;
+      if (risingBars < 5) return;
+
+      // Dual MA confirmation: current must be above 20-bar avg
+      if (p.length >= 20) {
+        const longAvg = p.slice(-20).reduce((a, b) => a + b, 0) / 20;
+        if (current <= longAvg) return;
+      }
+
+      // Momentum continuity: prev bar also positive
+      const prevStrength = (p[p.length - 2] - avg) / avg;
+      if (prevStrength <= 0) return;
+
       if (strength > minStrength && (!best || strength > best.strength)) {
         best = { sym, price: current, strength };
       }

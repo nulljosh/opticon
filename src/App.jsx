@@ -380,6 +380,24 @@ export default function App() {
 
       const minStrength = balance < 2 ? 0.008 : balance < 10 ? 0.009 : balance < 100 ? 0.010 : 0.012;
 
+      // Trend consistency: require at least 7/10 recent bars above their local avg
+      // This filters false breakouts and spikes that reverse immediately
+      const risingBars = recent.filter((price, i) => {
+        if (i === 0) return false;
+        return price > recent[i - 1];
+      }).length;
+      if (risingBars < 5) return; // Need at least 5 up-bars in last 10
+
+      // Dual MA confirmation: current must also be above 20-bar avg (if available)
+      if (p.length >= 20) {
+        const longAvg = p.slice(-20).reduce((a, b) => a + b, 0) / 20;
+        if (current <= longAvg) return; // Short-term momentum must align with longer trend
+      }
+
+      // Momentum continuity: previous bar must also show positive strength (no spike entries)
+      const prevStrength = (p[p.length - 2] - avg) / avg;
+      if (prevStrength <= 0) return;
+
       if (strength > minStrength && (!best || strength > best.strength)) {
         best = { sym, price: current, strength };
       }

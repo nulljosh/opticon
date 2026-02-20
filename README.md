@@ -8,7 +8,7 @@ Low-latency financial terminal with prediction markets, trading simulator, and q
 
 ## Features
 
-- **Trading Simulator**: 61 assets, autonomous algorithm, 50ms tick rate, $1 → $1B in <60s
+- **Trading Simulator**: 61 assets, autonomous algorithm, 50ms tick rate, $1 → $1T continuous run (Fibonacci milestones, no interruptions)
 - **Prediction Markets**: Real-time Polymarket feeds with probability filters
 - **Monte Carlo**: 5K-path simulations with bull/base/bear scenarios
 - **Live Data**: Yahoo Finance stocks, commodities, crypto

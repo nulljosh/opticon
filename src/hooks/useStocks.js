@@ -162,7 +162,7 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
 
     seedFromCache();
     fetchStocks();
-    const interval = setInterval(fetchStocks, 60000);
+    const interval = setInterval(fetchStocks, 30000);
     return () => clearInterval(interval);
   }, [fetchStocks]);
 

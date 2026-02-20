@@ -136,7 +136,6 @@ export default function App() {
   const [pmBalance, setPmBalance] = useState(0); // Track prediction market P&L separately
 
   // Milestone state management
-  const [pausedAtMilestone, setPausedAtMilestone] = useState(false);
   const [currentMilestone, setCurrentMilestone] = useState(1e9); // Start at $1B
   const [nextMilestone, setNextMilestone] = useState(null);
   const [showChart, setShowChart] = useState(false); // Default hide chart
@@ -317,20 +316,10 @@ export default function App() {
       setTradeStats(s => ({ ...s, wins: { ...s.wins, [position.sym]: (s.wins[position.sym] || 0) + pnl } }));
       setPosition(null);
 
-      // Check if reached current milestone
-      if (newBalance >= currentMilestone && !pausedAtMilestone) {
-        setRunning(false);
-        setPausedAtMilestone(true);
-        const exits = trades.filter(t => t.pnl);
-        const wins = exits.filter(t => parseFloat(t.pnl) > 0);
-        saveRun({
-          finalBalance: newBalance,
-          won: false, // Not final win, just checkpoint
-          duration: (Date.now() - startTime) / 1000,
-          tradeCount: exits.length,
-          tradeWinRate: exits.length ? (wins.length / exits.length * 100) : 0,
-        });
-        setRunStats(getStats());
+      // Update milestone tracker as balance grows
+      if (newBalance >= currentMilestone) {
+        const nextMile = FIB_LEVELS.find(level => level > newBalance);
+        if (nextMile) setCurrentMilestone(nextMile);
       }
       return;
     }
@@ -342,7 +331,7 @@ export default function App() {
 
   useEffect(() => {
     // Stop opening new positions if paused at milestone
-    if (!running || position || balance <= 0.5 || pausedAtMilestone) return;
+    if (!running || position || balance <= 0.5) return;
 
     // Update next milestone tracker
     const nextMile = FIB_LEVELS.find(level => level > balance);
@@ -495,22 +484,7 @@ export default function App() {
     return (live && typeof live.price === 'number') ? live.price : ASSETS[sym].price;
   }, []);
 
-  const handleContinue = useCallback(() => {
-    const nextMile = FIB_LEVELS.find(level => level > balance);
-    if (nextMile) {
-      setCurrentMilestone(nextMile);
-      setPausedAtMilestone(false);
-      setRunning(true);
-    } else {
-      // Reached end of FIB_LEVELS, continue with 2x pattern
-      const newLevel = currentMilestone * 2;
-      setCurrentMilestone(newLevel);
-      setPausedAtMilestone(false);
-      setRunning(true);
-    }
-  }, [balance, currentMilestone]);
-
-  const reset = useCallback(() => {
+const reset = useCallback(() => {
     setBalance(1);
     setPosition(null);
     setPrices(Object.fromEntries(SYMS.map(s => [s, [getLivePrice(s)]])));
@@ -523,7 +497,6 @@ export default function App() {
     setElapsedTime(0);
     setPmTrades([]);
     setPmBalance(0);
-    setPausedAtMilestone(false);
     setCurrentMilestone(1e9);
     setNextMilestone(null);
     trends.current = Object.fromEntries(SYMS.map(s => [s, 0]));
@@ -977,17 +950,7 @@ export default function App() {
               <button onClick={reset} style={{ padding: 16, borderRadius: 12, border: `1px solid ${t.border}`, background: 'transparent', color: t.textSecondary, fontFamily: font, fontSize: 16, cursor: 'pointer' }}>↺</button>
             </div>
 
-            {pausedAtMilestone && (
-              <div style={{ padding: 16, background: `${t.blue}15`, border: `1px solid ${t.blue}`, borderRadius: 12, marginTop: 14, textAlign: 'center' }}>
-                <div style={{ fontWeight: 600, marginBottom: 8, color: t.text }}>Milestone Reached: {formatNumber(currentMilestone)}</div>
-                <div style={{ fontSize: 14, color: t.textSecondary, marginBottom: 12 }}>Next target: {formatNumber(nextMilestone || currentMilestone * 2)}</div>
-                <button onClick={handleContinue} style={{ background: t.blue, color: '#fff', padding: '12px 24px', borderRadius: 12, border: 'none', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: font }}>
-                  Continue to {formatNumber(nextMilestone || currentMilestone * 2)}
-                </button>
-              </div>
-            )}
-
-            <div style={{ textAlign: 'center', fontSize: 10, color: t.textTertiary, marginBottom: 14, marginTop: 14 }}>
+<div style={{ textAlign: 'center', fontSize: 10, color: t.textTertiary, marginBottom: 14, marginTop: 14 }}>
               [Space] Start/Stop/Restart • [R] Reset
             </div>
 

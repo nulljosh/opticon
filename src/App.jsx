@@ -742,8 +742,20 @@ const reset = useCallback(() => {
   //   bear: t.red
   // };
 
+  // P&L background tint: green when up, red when down
+  const pnlBg = (() => {
+    const base = t.bg;
+    if (!running || balance === 1) return base;
+    if (balance > 1) {
+      const opacity = Math.min(Math.log10(balance) / 9, 1) * 0.10;
+      return `linear-gradient(rgba(48,209,88,${opacity.toFixed(3)}),rgba(48,209,88,${opacity.toFixed(3)})),${base}`;
+    }
+    const loss = Math.min((1 - balance) / 0.5, 1);
+    return `linear-gradient(rgba(255,69,58,${(loss * 0.08).toFixed(3)}),rgba(255,69,58,${(loss * 0.08).toFixed(3)})),${base}`;
+  })();
+
   return (
-    <div style={{ minHeight: '100dvh', background: t.bg, color: t.text, fontFamily: font }}>
+    <div style={{ minHeight: '100dvh', background: pnlBg, color: t.text, fontFamily: font, transition: 'background 1s ease' }}>
       {/* Header */}
       <header style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -1,19 +1,4 @@
 :root {
-  /* Colors */
-  --color-primary: #431407;
-  --color-secondary: #d8b4fe;
-  --color-accent-1: #431407;
-  --color-accent-2: #d8b4fe;
-  --color-accent-3: #fff0df;
-  --color-accent-4: #f5e5d5;
-  --color-accent-5: #fffaf4;
-
-  --color-neutral-1: #292524;
-  --color-neutral-2: #1c1917;
-  --color-neutral-3: #000000;
-  --color-neutral-4: #d6d3d1;
-  --color-neutral-5: #57534e;
-
   /* Typography */
   --font-primary: SF Pro;
   --font-secondary: SF Soft Time;
@@ -48,8 +33,8 @@
   --space-12: 48px;
   --space-13: 64px;
 
-  /* Effects */
-  --shadow-sm: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(67, 20, 7, 0.25) 0px 20px 25px -5px, rgba(67, 20, 7, 0.25) 0px 8px 10px -6px;
+  /* Effects (unused - app uses Tailwind shadows) */
+  --shadow-sm: rgba(0, 0, 0, 0.1) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 20px 25px -5px, rgba(0, 0, 0, 0.1) 0px 8px 10px -6px;
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
 

@@ -145,8 +145,8 @@ const categoryKeywords = {
 
 export default function App() {
   const [dark, setDark] = useState(true);
-  const [mapFocus, setMapFocus] = useState(false);
   const [hideSimulator, setHideSimulator] = useState(true);
+  const mapFocus = hideSimulator;
   const t = getTheme(dark);
   const font = '-apple-system, BlinkMacSystemFont, system-ui, sans-serif';
   const [showPricing, setShowPricing] = useState(false);
@@ -1010,33 +1010,10 @@ const reset = useCallback(() => {
       {showPricing && <PricingPage dark={dark} t={t} onClose={() => setShowPricing(false)} />}
 
       <button
-        onClick={() => setMapFocus(v => !v)}
-        style={{
-          position: 'fixed',
-          top: 86,
-          right: 14,
-          zIndex: 1100,
-          border: `1px solid ${t.border}`,
-          borderRadius: 999,
-          background: mapFocus ? `${t.cyan}22` : t.surface,
-          color: mapFocus ? t.cyan : t.textSecondary,
-          fontFamily: font,
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.05em',
-          padding: '7px 12px',
-          cursor: 'pointer',
-          pointerEvents: 'auto',
-        }}
-      >
-        {mapFocus ? 'EXIT MAP FOCUS' : 'MAP FOCUS'}
-      </button>
-
-      <button
         onClick={() => setHideSimulator(v => !v)}
         style={{
           position: 'fixed',
-          top: 126,
+          top: 86,
           right: 14,
           zIndex: 1100,
           border: `1px solid ${t.border}`,

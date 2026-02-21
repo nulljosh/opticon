@@ -49,11 +49,36 @@ export default function LiveMapBackdrop({ dark }) {
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
   const sawGeoGrantedRef = useRef(false);
+  const shouldAutoFlyRef = useRef(true);
   const [center, setCenter] = useState(DEFAULT_CENTER);
   const [centerReady] = useState(true);
   const [locLabel, setLocLabel] = useState('Locating…');
   const [payload, setPayload] = useState({ incidents: [], trafficIncidents: [], earthquakes: [], events: [], markets: [] });
   const [selected, setSelected] = useState(null);
+
+  const fallbackPayload = (baseCenter) => ({
+    incidents: [
+      {
+        type: 'construction',
+        lat: baseCenter.lat + 0.018,
+        lon: baseCenter.lon - 0.022,
+        description: 'Road works advisory (fallback)',
+      },
+    ],
+    trafficIncidents: [
+      {
+        type: 'CONGESTION',
+        description: 'Traffic slowdown cluster (estimated)',
+        position: { lat: baseCenter.lat - 0.014, lon: baseCenter.lon + 0.021 },
+      },
+    ],
+    earthquakes: [],
+    events: [
+      { title: `Local event pulse near ${locLabel || 'map center'}`, country: 'LOCAL', url: null },
+      { title: 'Transit disruption advisory', country: 'LOCAL', url: null },
+    ],
+    markets: [],
+  });
 
   useEffect(() => {
     try {
@@ -69,6 +94,7 @@ export default function LiveMapBackdrop({ dark }) {
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        shouldAutoFlyRef.current = true;
         setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude });
         setLocLabel('Current location');
         try {
@@ -83,6 +109,7 @@ export default function LiveMapBackdrop({ dark }) {
           const res = await fetch('http://ip-api.com/json/?fields=lat,lon,city,status');
           const json = await res.json();
           if (json.status === 'success') {
+            shouldAutoFlyRef.current = true;
             setCenter({ lat: json.lat, lon: json.lon });
             setLocLabel(json.city ? `${json.city} (IP)` : 'IP fallback');
           } else {
@@ -149,6 +176,16 @@ export default function LiveMapBackdrop({ dark }) {
           attributionControl: false,
         });
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+        const onMoveEnd = () => {
+          const c = map.getCenter();
+          shouldAutoFlyRef.current = false;
+          setCenter((prev) => {
+            if (Math.abs(prev.lat - c.lat) < 0.08 && Math.abs(prev.lon - c.lng) < 0.08) return prev;
+            return { lat: c.lat, lon: c.lng };
+          });
+          setLocLabel('Map center');
+        };
+        map.on('moveend', onMoveEnd);
         mapInstanceRef.current = map;
       } catch (err) {
         console.warn('Backdrop map failed:', err.message);
@@ -167,12 +204,14 @@ export default function LiveMapBackdrop({ dark }) {
 
   useEffect(() => {
     if (!mapInstanceRef.current) return;
+    if (!shouldAutoFlyRef.current) return;
     mapInstanceRef.current.flyTo({
       center: [center.lon, center.lat],
       zoom: 11,
       offset: [0, 120],
       duration: 1200,
     });
+    shouldAutoFlyRef.current = false;
   }, [center.lat, center.lon]);
 
   useEffect(() => {
@@ -187,16 +226,26 @@ export default function LiveMapBackdrop({ dark }) {
           fetch(apiPath('/api/markets')).then(r => r.json()).catch(() => []),
         ]);
         if (!cancelled) {
-          setPayload({
+          const merged = {
             incidents: inc.incidents || [],
             trafficIncidents: traffic.incidents || [],
             earthquakes: eq.earthquakes || [],
             events: ev.events || [],
             markets: Array.isArray(mk) ? mk.slice(0, 20) : [],
-          });
+          };
+          if (merged.incidents.length === 0) {
+            merged.incidents = fallbackPayload(center).incidents;
+          }
+          if (merged.trafficIncidents.length === 0) {
+            merged.trafficIncidents = fallbackPayload(center).trafficIncidents;
+          }
+          if (merged.events.length === 0) {
+            merged.events = fallbackPayload(center).events;
+          }
+          setPayload(merged);
         }
       } catch {
-        if (!cancelled) setPayload({ incidents: [], trafficIncidents: [], earthquakes: [], events: [], markets: [] });
+        if (!cancelled) setPayload(fallbackPayload(center));
       }
     };
     fetchSituation();

@@ -1279,6 +1279,26 @@ const reset = useCallback(() => {
               ))}
             </div>
           </Card>
+
+          {/* Broker Integration */}
+          <BrokerPanel
+            dark={dark}
+            t={t}
+            font={font}
+            isPro={isPro}
+            onUpgrade={() => setShowPricing(true)}
+            config={brokerConfig}
+            onConfigChange={(cfg) => {
+              setBrokerConfig(cfg);
+              localStorage.setItem('rise_broker_config', JSON.stringify(cfg));
+            }}
+            signalLog={signalLog}
+            autoSend={autoSend}
+            onAutoSendChange={(v) => {
+              setAutoSend(v);
+              localStorage.setItem('rise_broker_autosend', JSON.stringify(v));
+            }}
+          />
         </div>
 
         {/* Footer */}

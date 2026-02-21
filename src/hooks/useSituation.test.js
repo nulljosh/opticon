@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useSituation, WORLD_CITIES } from './useSituation';
 
-// Suppress console.warn/error noise in tests
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -10,7 +9,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.clearAllTimers();
 });
 
 const mockFlightsResponse = {
@@ -35,8 +33,7 @@ const mockGeoResponse = {
   city: 'Vancouver',
 };
 
-function mockFetch(responses) {
-  let callIndex = 0;
+function mockFetch() {
   global.fetch = vi.fn(url => {
     if (url.includes('ip-api.com')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
@@ -81,16 +78,10 @@ describe('WORLD_CITIES', () => {
 describe('useSituation', () => {
   beforeEach(() => {
     mockFetch();
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('defaults to first world city center before geo resolves', () => {
     const { result } = renderHook(() => useSituation());
-    // Before geo resolves: selectedCity=null, userLocation=null → falls back to NYC
     const { activeCenter } = result.current;
     expect(activeCenter.lat).toBe(WORLD_CITIES[0].lat);
     expect(activeCenter.lon).toBe(WORLD_CITIES[0].lon);
@@ -128,8 +119,7 @@ describe('useSituation', () => {
     });
 
     const { result } = renderHook(() => useSituation());
-    await waitFor(() => !result.current.flightsLoading);
-    expect(result.current.flightsError).toBeTruthy();
+    await waitFor(() => expect(result.current.flightsError).toBeTruthy());
     expect(result.current.flights).toHaveLength(0);
   });
 
@@ -142,8 +132,7 @@ describe('useSituation', () => {
     });
 
     const { result } = renderHook(() => useSituation());
-    await waitFor(() => !result.current.trafficLoading);
-    expect(result.current.trafficError).toBeTruthy();
+    await waitFor(() => expect(result.current.trafficError).toBeTruthy());
     expect(result.current.traffic).toBeNull();
   });
 
@@ -156,8 +145,7 @@ describe('useSituation', () => {
     });
 
     const { result } = renderHook(() => useSituation());
-    await waitFor(() => !result.current.flightsLoading);
-    // Should still have a valid activeCenter from world cities fallback
+    await waitFor(() => expect(result.current.flights.length).toBeGreaterThan(0));
     expect(result.current.activeCenter.lat).toBeTypeOf('number');
     expect(result.current.activeCenter.lon).toBeTypeOf('number');
   });

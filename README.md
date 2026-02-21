@@ -54,6 +54,12 @@ npm run build
 npm run test:speed
 ```
 
+## Reliability Notes
+
+- Stock fetch path now uses bounded timeout + retry/backoff and Yahoo provider fallback (`query1` -> `query2`).
+- Stocks and markets APIs keep a short in-memory warm cache and can serve stale cached data on transient upstream failures.
+- Frontend stock hook seeds from `/api/latest` cache, then refreshes live; UI now shows feed reliability state: `LIVE`, `FALLBACK`, or `STALE`.
+
 ## Layout
 
 - `src/` app UI, hooks, utils

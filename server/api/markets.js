@@ -1,3 +1,22 @@
+const POLYMARKET_URL = 'https://gamma-api.polymarket.com/markets';
+const REQUEST_TIMEOUT_MS = 10000;
+const MAX_ATTEMPTS = 3;
+const RETRY_BASE_MS = 300;
+const ENABLE_CACHE = process.env.NODE_ENV !== 'test';
+const CACHE_TTL_MS = 30000;
+const STALE_IF_ERROR_MS = 5 * 60 * 1000;
+const cache = new Map();
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function getCached(cacheKey, maxAgeMs) {
+  if (!ENABLE_CACHE) return null;
+  const cached = cache.get(cacheKey);
+  if (!cached) return null;
+  if ((Date.now() - cached.ts) > maxAgeMs) return null;
+  return cached.data;
+}
+
 export default async function handler(req, res) {
   // Validate query parameters
   const limit = Math.min(parseInt(req.query.limit) || 50, 100); // Max 100
@@ -14,25 +33,48 @@ export default async function handler(req, res) {
     });
   }
 
+  const cacheKey = `${closed}:${limit}:${order}:${ascending}`;
+  const freshCached = getCached(cacheKey, CACHE_TTL_MS);
+  if (freshCached) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+    return res.status(200).json(freshCached);
+  }
+
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    let data = null;
+    let lastError = null;
+    const url = `${POLYMARKET_URL}?closed=${closed}&limit=${limit}&order=${order}&ascending=${ascending}`;
 
-    const url = `https://gamma-api.polymarket.com/markets?closed=${closed}&limit=${limit}&order=${order}&ascending=${ascending}`;
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'Accept': 'application/json'
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Polymarket API returned ${response.status}: ${response.statusText}`);
+        }
+
+        data = await response.json();
+        break;
+      } catch (err) {
+        lastError = err;
+        if (attempt < MAX_ATTEMPTS - 1) {
+          const delay = process.env.NODE_ENV === 'test' ? 0 : RETRY_BASE_MS * (2 ** attempt);
+          await sleep(delay);
+        }
+      } finally {
+        clearTimeout(timeoutId);
       }
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`Polymarket API returned ${response.status}: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    if (!data) throw lastError || new Error('No data returned from Polymarket');
 
     // Validate response is an array
     if (!Array.isArray(data)) {
@@ -57,11 +99,22 @@ export default async function handler(req, res) {
       console.warn(`Filtered out ${data.length - validMarkets.length} invalid markets`);
     }
 
+    if (ENABLE_CACHE) {
+      cache.set(cacheKey, { ts: Date.now(), data: validMarkets });
+    }
+
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
-    res.status(200).json(validMarkets);
+    return res.status(200).json(validMarkets);
   } catch (error) {
     console.error('Markets API error:', error);
+
+    const staleCached = getCached(cacheKey, STALE_IF_ERROR_MS);
+    if (staleCached) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+      return res.status(200).json(staleCached);
+    }
 
     if (error.name === 'AbortError') {
       return res.status(504).json({

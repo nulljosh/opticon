@@ -224,7 +224,7 @@ export default function App() {
 
   const { prices: liveAssets, lastUpdated } = useLivePrices(defaultAssets);
   const { markets, loading: pmLoading, error: pmError } = usePolymarket();
-  const { stocks, error: stocksError } = useStocks();
+  const { stocks, reliability: stocksReliability } = useStocks();
 
   // Sync live stock prices into ref for simulator access
   useEffect(() => {
@@ -857,7 +857,7 @@ const reset = useCallback(() => {
           <span style={{ color: t.textTertiary, fontSize: 13 }}>/</span>
           <span style={{ color: t.text, fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>rise</span>
           <span style={{ width: 1, height: 14, background: t.border, marginLeft: 8 }} />
-          <StatusBar t={t} />
+          <StatusBar t={t} reliability={stocksReliability} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 10, color: t.textTertiary, fontVariantNumeric: 'tabular-nums' }}>{formatLastUpdated(lastUpdated)}</span>

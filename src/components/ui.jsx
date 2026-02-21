@@ -50,12 +50,21 @@ export const BlinkingDot = ({ color, delay = 0, speed = 2 }) => (
   }} />
 );
 
-export const StatusBar = ({ t }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
-    <BlinkingDot color={t.green} delay={0} speed={3} />
-    <span style={{ color: t.textTertiary, fontWeight: 500 }}>LIVE</span>
-  </div>
-);
+export const StatusBar = ({ t, reliability }) => {
+  const status = reliability?.status || 'live';
+  const cfg = status === 'stale'
+    ? { label: 'STALE', color: '#ff6b6b' }
+    : status === 'fallback'
+      ? { label: 'FALLBACK', color: '#f5a623' }
+      : { label: 'LIVE', color: t.green };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+      <BlinkingDot color={cfg.color} delay={0} speed={3} />
+      <span style={{ color: cfg.color, fontWeight: 700 }}>{cfg.label}</span>
+    </div>
+  );
+};
 
 export const Card = ({ children, style, onClick, dark, t }) => (
   <div onClick={onClick} style={{

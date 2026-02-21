@@ -32,6 +32,7 @@ const DEFAULT_SYMBOLS = [
   // Cramer tracker ETFs + benchmark
   'SPY', 'SJIM', 'LJIM',
 ];
+const STALE_AFTER_MS = 2 * 60 * 1000;
 
 // Retry helper with exponential backoff
 const fetchWithRetry = async (url, maxRetries = 3, baseDelay = 1000) => {
@@ -218,8 +219,15 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
   const [stocks, setStocks] = useState(FALLBACK_DATA);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reliability, setReliability] = useState({
+    status: 'fallback',
+    source: 'static',
+    lastSuccessAt: null,
+    lastAttemptAt: null,
+  });
   const retryCountRef = useRef(0);
   const seededFromCache = useRef(false);
+  const lastLiveSuccessRef = useRef(null);
 
   const fetchStocks = useCallback(async () => {
     try {
@@ -233,16 +241,28 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
 
       setStocks(prev => ({ ...FALLBACK_DATA, ...prev, ...stockMap }));
       setError(null);
+      const now = Date.now();
+      lastLiveSuccessRef.current = now;
+      setReliability({
+        status: 'live',
+        source: 'live',
+        lastSuccessAt: now,
+        lastAttemptAt: now,
+      });
       retryCountRef.current = 0;
     } catch (err) {
       setError(err.message);
       console.error('Stock fetch error (all APIs failed):', err);
       retryCountRef.current += 1;
-
-      if (Object.keys(stocks).length === 0) {
-        console.warn('Using fallback stock data');
-        setStocks(FALLBACK_DATA);
-      }
+      const now = Date.now();
+      const age = lastLiveSuccessRef.current ? (now - lastLiveSuccessRef.current) : Number.POSITIVE_INFINITY;
+      setReliability(prev => ({
+        status: age > STALE_AFTER_MS ? 'stale' : 'fallback',
+        source: prev.source === 'live' ? 'cache' : prev.source,
+        lastSuccessAt: prev.lastSuccessAt,
+        lastAttemptAt: now,
+      }));
+      setStocks(prev => (Object.keys(prev || {}).length > 0 ? prev : FALLBACK_DATA));
     } finally {
       setLoading(false);
     }
@@ -260,7 +280,15 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
           seededFromCache.current = true;
           const stockMap = parseStockData(data.stocks);
           if (stockMap) {
+            const cachedAt = data.updatedAt ? new Date(data.updatedAt).getTime() : Date.now();
+            const cacheAge = Date.now() - cachedAt;
             setStocks(prev => ({ ...FALLBACK_DATA, ...prev, ...stockMap }));
+            setReliability({
+              status: cacheAge > STALE_AFTER_MS ? 'stale' : 'fallback',
+              source: 'cache',
+              lastSuccessAt: cachedAt,
+              lastAttemptAt: Date.now(),
+            });
             setLoading(false);
           }
         }
@@ -279,6 +307,7 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
     stocks,
     loading,
     error,
+    reliability,
     refetch: fetchStocks,
     retryCount: retryCountRef.current
   };

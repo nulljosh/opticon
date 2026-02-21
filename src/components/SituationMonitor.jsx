@@ -30,6 +30,7 @@ export default function SituationMonitor({
   const markersRef = useRef([]);
   const [showPmEdges, setShowPmEdges] = useState(true);
   const [showTrades, setShowTrades] = useState(false);
+  const [mapSelection, setMapSelection] = useState(null);
 
   const {
     activeCenter, selectedCity, setSelectedCity,
@@ -71,7 +72,7 @@ export default function SituationMonitor({
     mapInstanceRef.current.flyTo({ center: [activeCenter.lon, activeCenter.lat], zoom: 8, duration: 1200 });
   }, [activeCenter.lat, activeCenter.lon]);
 
-  // Update all markers
+  // Update all markers (click/hover to inspect details)
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     markersRef.current.forEach(m => m.remove());
@@ -79,36 +80,106 @@ export default function SituationMonitor({
     (async () => {
       try {
         const maplibregl = (await import('maplibre-gl')).default;
+        const mkEl = (style, title, data) => {
+          const el = document.createElement('div');
+          el.style.cssText = style;
+          if (title) el.title = title;
+          el.addEventListener('mouseenter', () => setMapSelection(data));
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setMapSelection(data);
+          });
+          return el;
+        };
 
-        // Flights — cyan dots
+        // User pin (drop pin)
+        if (userLocation?.lat != null && userLocation?.lon != null) {
+          const pin = document.createElement('div');
+          pin.style.cssText = `
+            width:14px;height:14px;border-radius:50% 50% 50% 0;
+            transform:rotate(-45deg);
+            background:#3B82F6;
+            border:2px solid rgba(255,255,255,0.8);
+            box-shadow:0 0 0 0 rgba(59,130,246,0.55);
+            animation:pulse-blue 2.2s infinite;
+            cursor:pointer;
+          `;
+          pin.title = `You: ${userLocation.city || 'Current location'}`;
+          pin.addEventListener('mouseenter', () => setMapSelection({
+            type: 'location',
+            title: userLocation.city || 'Current location',
+            subtitle: `${userLocation.lat.toFixed(4)}, ${userLocation.lon.toFixed(4)}`,
+            level: 'local',
+          }));
+          pin.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setMapSelection({
+              type: 'location',
+              title: userLocation.city || 'Current location',
+              subtitle: `${userLocation.lat.toFixed(4)}, ${userLocation.lon.toFixed(4)}`,
+              level: 'local',
+            });
+          });
+          markersRef.current.push(
+            new maplibregl.Marker({ element: pin }).setLngLat([userLocation.lon, userLocation.lat]).addTo(mapInstanceRef.current)
+          );
+        }
+
+        // Flights — cyan pulses
         flights.slice(0, 50).forEach(f => {
           if (f.lon == null || f.lat == null) return;
-          const el = Object.assign(document.createElement('div'), {});
-          el.style.cssText = 'width:6px;height:6px;border-radius:50%;background:#64D2FF;opacity:0.85;';
+          const callsign = f.callsign || f.icao24 || 'flight';
+          const data = {
+            type: 'flight',
+            title: callsign,
+            subtitle: f.altitude ? `FL${Math.round(f.altitude / 100)} • ${Math.round(f.velocity || 0)} kt` : 'altitude unknown',
+            level: 'live',
+          };
+          const el = mkEl(
+            'width:7px;height:7px;border-radius:50%;background:#64D2FF;opacity:0.92;box-shadow:0 0 0 0 rgba(100,210,255,0.5);animation:pulse-cyan 1.9s infinite;cursor:pointer;',
+            callsign,
+            data
+          );
           markersRef.current.push(new maplibregl.Marker({ element: el }).setLngLat([f.lon, f.lat]).addTo(mapInstanceRef.current));
         });
 
-        // Incidents — orange dots
+        // Incidents — amber pulses
         incidents.forEach(inc => {
           if (inc.lon == null || inc.lat == null) return;
-          const el = Object.assign(document.createElement('div'), {});
-          el.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#FF9500;opacity:0.9;cursor:pointer;';
-          el.title = inc.description || inc.type;
+          const data = {
+            type: 'incident',
+            title: (inc.type || 'incident').toUpperCase(),
+            subtitle: inc.description || 'No details',
+            level: 'local',
+          };
+          const el = mkEl(
+            'width:9px;height:9px;border-radius:50%;background:#FF9500;opacity:0.95;box-shadow:0 0 0 0 rgba(255,149,0,0.55);animation:pulse-amber 1.8s infinite;cursor:pointer;',
+            inc.description || inc.type,
+            data
+          );
           markersRef.current.push(new maplibregl.Marker({ element: el }).setLngLat([inc.lon, inc.lat]).addTo(mapInstanceRef.current));
         });
 
-        // Earthquakes — red dots, size by magnitude
+        // Earthquakes — red pulses (size by magnitude)
         earthquakes.forEach(eq => {
           if (eq.lon == null || eq.lat == null) return;
           const size = Math.max(6, Math.min(20, eq.mag * 3));
-          const el = Object.assign(document.createElement('div'), {});
-          el.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;background:#FF3B30;opacity:0.75;cursor:pointer;border:1px solid rgba(255,59,48,0.5);`;
-          el.title = `M${eq.mag} — ${eq.place}`;
+          const data = {
+            type: 'earthquake',
+            title: `M${eq.mag?.toFixed?.(1) ?? eq.mag}`,
+            subtitle: eq.place || 'Seismic event',
+            level: eq.mag >= 6 ? 'critical' : eq.mag >= 4 ? 'elevated' : 'monitor',
+          };
+          const el = mkEl(
+            `width:${size}px;height:${size}px;border-radius:50%;background:#FF3B30;opacity:0.82;cursor:pointer;border:1px solid rgba(255,59,48,0.55);box-shadow:0 0 0 0 rgba(255,59,48,0.5);animation:pulse-red 2s infinite;`,
+            `M${eq.mag} — ${eq.place}`,
+            data
+          );
           markersRef.current.push(new maplibregl.Marker({ element: el }).setLngLat([eq.lon, eq.lat]).addTo(mapInstanceRef.current));
         });
       } catch { /* ignore maplibre errors */ }
     })();
-  }, [flights, incidents, earthquakes]);
+  }, [flights, incidents, earthquakes, userLocation]);
 
   const nearbyFlights = flights.slice(0, 6);
   const congestion = traffic?.flow?.congestion ?? null;
@@ -119,6 +190,13 @@ export default function SituationMonitor({
 
   return (
     <Card dark={dark} t={t} style={{ padding: '16px 20px' }}>
+      <style>{`
+        @keyframes pulse-blue { 0% { box-shadow:0 0 0 0 rgba(59,130,246,.55) } 70% { box-shadow:0 0 0 16px rgba(59,130,246,0) } 100% { box-shadow:0 0 0 0 rgba(59,130,246,0) } }
+        @keyframes pulse-cyan { 0% { box-shadow:0 0 0 0 rgba(100,210,255,.5) } 70% { box-shadow:0 0 0 12px rgba(100,210,255,0) } 100% { box-shadow:0 0 0 0 rgba(100,210,255,0) } }
+        @keyframes pulse-amber { 0% { box-shadow:0 0 0 0 rgba(255,149,0,.5) } 70% { box-shadow:0 0 0 12px rgba(255,149,0,0) } 100% { box-shadow:0 0 0 0 rgba(255,149,0,0) } }
+        @keyframes pulse-red { 0% { box-shadow:0 0 0 0 rgba(255,59,48,.45) } 70% { box-shadow:0 0 0 16px rgba(255,59,48,0) } 100% { box-shadow:0 0 0 0 rgba(255,59,48,0) } }
+      `}</style>
+
       {/* Weather alert banner */}
       {weatherAlerts.length > 0 && (
         <div style={{
@@ -308,6 +386,24 @@ export default function SituationMonitor({
           {activeCenter.lat.toFixed(4)}, {activeCenter.lon.toFixed(4)}
         </div>
       </div>
+
+      {/* Map selection detail */}
+      {mapSelection && (
+        <div style={{
+          marginTop: -4,
+          marginBottom: 12,
+          border: `1px solid ${t.border}`,
+          background: t.surface,
+          borderRadius: 10,
+          padding: '8px 10px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: t.text, fontFamily: font }}>{mapSelection.title}</div>
+            <div style={{ fontSize: 9, color: t.textTertiary, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: font }}>{mapSelection.level}</div>
+          </div>
+          <div style={{ marginTop: 2, fontSize: 10, color: t.textSecondary, fontFamily: font }}>{mapSelection.subtitle}</div>
+        </div>
+      )}
 
       {/* Flights + Traffic */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>

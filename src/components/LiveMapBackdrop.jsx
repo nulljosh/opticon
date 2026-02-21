@@ -7,13 +7,18 @@ export default function LiveMapBackdrop({ dark }) {
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
   const [center, setCenter] = useState(DEFAULT_CENTER);
+  const [centerReady, setCenterReady] = useState(false);
   const [payload, setPayload] = useState({ incidents: [], earthquakes: [], events: [] });
 
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setCenterReady(true);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setCenterReady(true);
       },
       async () => {
         try {
@@ -22,6 +27,8 @@ export default function LiveMapBackdrop({ dark }) {
           if (json.status === 'success') setCenter({ lat: json.lat, lon: json.lon });
         } catch {
           // fallback stays on default center
+        } finally {
+          setCenterReady(true);
         }
       },
       { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 }
@@ -41,10 +48,11 @@ export default function LiveMapBackdrop({ dark }) {
             ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
             : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
           center: [center.lon, center.lat],
-          zoom: 5.4,
-          interactive: false,
+          zoom: 6.2,
+          interactive: true,
           attributionControl: false,
         });
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
         mapInstanceRef.current = map;
       } catch (err) {
         console.warn('Backdrop map failed:', err.message);
@@ -59,7 +67,7 @@ export default function LiveMapBackdrop({ dark }) {
         mapInstanceRef.current = null;
       }
     };
-  }, [dark]);
+  }, [dark, centerReady]);
 
   useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -184,8 +192,8 @@ export default function LiveMapBackdrop({ dark }) {
           position: 'fixed',
           inset: 0,
           zIndex: 0,
-          pointerEvents: 'none',
-          filter: dark ? 'saturate(1.05) brightness(0.62)' : 'saturate(1.05) brightness(0.82)',
+          pointerEvents: 'auto',
+          filter: dark ? 'saturate(1.08) brightness(0.78)' : 'saturate(1.1) brightness(0.92)',
         }}
       />
       <div
@@ -195,8 +203,8 @@ export default function LiveMapBackdrop({ dark }) {
           zIndex: 0,
           pointerEvents: 'none',
           background: dark
-            ? 'radial-gradient(circle at 50% 15%, rgba(2,6,23,0.18), rgba(2,6,23,0.66) 58%, rgba(2,6,23,0.82) 100%)'
-            : 'radial-gradient(circle at 50% 15%, rgba(255,255,255,0.18), rgba(255,255,255,0.52) 58%, rgba(244,247,252,0.75) 100%)',
+            ? 'radial-gradient(circle at 50% 15%, rgba(2,6,23,0.08), rgba(2,6,23,0.42) 58%, rgba(2,6,23,0.56) 100%)'
+            : 'radial-gradient(circle at 50% 15%, rgba(255,255,255,0.08), rgba(255,255,255,0.35) 58%, rgba(244,247,252,0.52) 100%)',
         }}
       />
     </>

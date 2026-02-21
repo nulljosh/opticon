@@ -844,6 +844,11 @@ const reset = useCallback(() => {
       transition: running ? 'none' : 'background 220ms ease',
     }}>
       <LiveMapBackdrop dark={dark} />
+      {/* Scrolling Ticker Tape (top-most UI row) */}
+      <div style={{ position: 'relative', zIndex: 1, pointerEvents: mapFocus ? 'none' : 'auto' }}>
+        <Ticker items={tickerItems} theme={t} />
+      </div>
+
       {/* Header */}
       <header style={{ position: 'relative', zIndex: 1, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}`, pointerEvents: mapFocus ? 'none' : 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -880,11 +885,6 @@ const reset = useCallback(() => {
           </button>
         </div>
       </header>
-
-      {/* Scrolling Ticker Tape */}
-      <div style={{ position: 'relative', zIndex: 1, pointerEvents: mapFocus ? 'none' : 'auto' }}>
-        <Ticker items={tickerItems} theme={t} />
-      </div>
 
       <div style={{ position: 'relative', zIndex: 1, padding: 16, maxWidth: 1400, margin: '0 auto', pointerEvents: mapFocus ? 'none' : 'auto', opacity: mapFocus ? 0.58 : 1, transition: 'opacity 180ms ease' }}>
 

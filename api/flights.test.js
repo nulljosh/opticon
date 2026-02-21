@@ -113,7 +113,7 @@ describe('api/flights handler', () => {
 
     const { req, res } = makeReqRes({ lamin: '47', lomin: '-126', lamax: '51', lomax: '-120' });
     await handler(req, res);
-    expect(res._headers['Cache-Control']).toContain('max-age=15');
+    expect(res._headers['Cache-Control']).toContain('s-maxage=15');
   });
 
   it('trims callsign whitespace', async () => {

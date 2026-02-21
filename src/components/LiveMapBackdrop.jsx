@@ -8,6 +8,7 @@ export default function LiveMapBackdrop({ dark }) {
   const markersRef = useRef([]);
   const [center, setCenter] = useState(DEFAULT_CENTER);
   const [centerReady, setCenterReady] = useState(false);
+  const [locLabel, setLocLabel] = useState('Locating…');
   const [payload, setPayload] = useState({ incidents: [], earthquakes: [], events: [] });
 
   useEffect(() => {
@@ -18,15 +19,22 @@ export default function LiveMapBackdrop({ dark }) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setLocLabel('Current location');
         setCenterReady(true);
       },
       async () => {
         try {
-          const res = await fetch('http://ip-api.com/json/?fields=lat,lon,status');
+          const res = await fetch('http://ip-api.com/json/?fields=lat,lon,city,status');
           const json = await res.json();
-          if (json.status === 'success') setCenter({ lat: json.lat, lon: json.lon });
+          if (json.status === 'success') {
+            setCenter({ lat: json.lat, lon: json.lon });
+            setLocLabel(json.city ? `${json.city} (IP)` : 'IP fallback');
+          } else {
+            setLocLabel('Location unavailable');
+          }
         } catch {
           // fallback stays on default center
+          setLocLabel('Location unavailable');
         } finally {
           setCenterReady(true);
         }
@@ -36,6 +44,7 @@ export default function LiveMapBackdrop({ dark }) {
   }, []);
 
   useEffect(() => {
+    if (!centerReady) return;
     let map;
     (async () => {
       try {
@@ -117,12 +126,23 @@ export default function LiveMapBackdrop({ dark }) {
           return el;
         };
 
-        // User pin
+        // User pin + label
         markersRef.current.push(
           new maplibregl.Marker({
             element: makePulse(
-              'width:14px;height:14px;border-radius:50%;background:#3B82F6;border:2px solid rgba(255,255,255,0.7);box-shadow:0 0 0 0 rgba(59,130,246,0.6);animation:pulse-blue 2s infinite;'
+              'width:18px;height:18px;border-radius:50%;background:#3B82F6;border:3px solid rgba(255,255,255,0.9);box-shadow:0 0 0 0 rgba(59,130,246,0.65);animation:pulse-blue 2s infinite;'
             ),
+          })
+            .setLngLat([center.lon, center.lat])
+            .addTo(mapInstanceRef.current)
+        );
+        markersRef.current.push(
+          new maplibregl.Marker({
+            element: makePulse(
+              'background:rgba(15,23,42,0.82);color:#fff;font:700 10px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:2px 6px;border-radius:999px;border:1px solid rgba(255,255,255,0.25);',
+              'you'
+            ),
+            offset: [0, -18],
           })
             .setLngLat([center.lon, center.lat])
             .addTo(mapInstanceRef.current)
@@ -194,6 +214,7 @@ export default function LiveMapBackdrop({ dark }) {
           zIndex: 0,
           pointerEvents: 'auto',
           filter: dark ? 'saturate(1.08) brightness(0.78)' : 'saturate(1.1) brightness(0.92)',
+          filter: dark ? 'saturate(1.12) brightness(0.9)' : 'saturate(1.1) brightness(0.95)',
         }}
       />
       <div
@@ -203,10 +224,28 @@ export default function LiveMapBackdrop({ dark }) {
           zIndex: 0,
           pointerEvents: 'none',
           background: dark
-            ? 'radial-gradient(circle at 50% 15%, rgba(2,6,23,0.08), rgba(2,6,23,0.42) 58%, rgba(2,6,23,0.56) 100%)'
-            : 'radial-gradient(circle at 50% 15%, rgba(255,255,255,0.08), rgba(255,255,255,0.35) 58%, rgba(244,247,252,0.52) 100%)',
+            ? 'radial-gradient(circle at 50% 15%, rgba(2,6,23,0.06), rgba(2,6,23,0.28) 58%, rgba(2,6,23,0.42) 100%)'
+            : 'radial-gradient(circle at 50% 15%, rgba(255,255,255,0.06), rgba(255,255,255,0.26) 58%, rgba(244,247,252,0.42) 100%)',
         }}
       />
+      <button
+        onClick={() => mapInstanceRef.current?.flyTo({ center: [center.lon, center.lat], zoom: 8, duration: 900 })}
+        style={{
+          position: 'fixed',
+          right: 14,
+          bottom: 14,
+          zIndex: 2,
+          border: '1px solid rgba(255,255,255,0.25)',
+          borderRadius: 999,
+          background: 'rgba(2,6,23,0.72)',
+          color: '#fff',
+          font: '600 11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
+          padding: '6px 10px',
+          cursor: 'pointer',
+        }}
+      >
+        YOU · {locLabel}
+      </button>
     </>
   );
 }

@@ -90,12 +90,11 @@ describe('api/flights handler', () => {
     expect(first.altitude).toBeCloseTo(35000, -2);
   });
 
-  it('falls back to 502 when both APIs fail', async () => {
+  it('returns 502 when OpenSky fails', async () => {
     // Reload handler module to get a fresh cache (avoids stale cache from prior tests)
     vi.resetModules();
     const { default: freshHandler } = await import('./flights.js');
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
-    process.env.AVIATIONSTACK_API_KEY = 'test-key';
 
     const { req, res } = makeReqRes({ lamin: '47', lomin: '-126', lamax: '51', lomax: '-120' });
     await freshHandler(req, res);
@@ -104,8 +103,6 @@ describe('api/flights handler', () => {
     expect(res._body.error).toBeTruthy();
     expect(res._body.states).toEqual([]);
     expect(res._body.count).toBe(0);
-
-    delete process.env.AVIATIONSTACK_API_KEY;
   });
 
   it('sets cache headers', async () => {

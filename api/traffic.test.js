@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import handler from './traffic.js';
 
 function makeReqRes(query = {}) {
@@ -120,13 +120,75 @@ describe('api/traffic handler', () => {
     expect(res._body.flow.congestion).toBe('moderate');
   });
 
-  it('returns source none when TomTom key missing', async () => {
+  it('returns estimated congestion when TOMTOM_API_KEY missing', async () => {
     global.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [] }) }));
-    const { req, res } = makeReqRes({ lat: '49.28', lon: '-123.12' });
+    const { req, res } = makeReqRes({ lat: '49.28', lon: '0' });
     await handler(req, res);
     expect(res._status).toBe(200);
-    expect(res._body.flow.source).toBe('none');
-    expect(res._body.flow.congestion).toBe('unknown');
+    expect(res._body.flow.source).toBe('estimated');
+    expect(['clear', 'moderate', 'heavy']).toContain(res._body.flow.congestion);
+    expect(res._body.flow.currentSpeed).toBeNull();
+    expect(res._body.flow.freeFlowSpeed).toBeNull();
+    expect(res._body.flow.confidence).toBeNull();
+  });
+
+  it('estimated is heavy during morning rush (07-09)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-20T08:00:00Z')); // Friday 08:00 UTC, lon=0 → local 08:00
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [] }) }));
+    const { req, res } = makeReqRes({ lat: '0', lon: '0' });
+    await handler(req, res);
+    expect(res._body.flow.congestion).toBe('heavy');
+    vi.useRealTimers();
+  });
+
+  it('estimated is heavy during evening rush (17-19)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-20T18:00:00Z')); // Friday 18:00 UTC, lon=0 → local 18:00
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [] }) }));
+    const { req, res } = makeReqRes({ lat: '0', lon: '0' });
+    await handler(req, res);
+    expect(res._body.flow.congestion).toBe('heavy');
+    vi.useRealTimers();
+  });
+
+  it('estimated is clear at night', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-20T02:00:00Z')); // Friday 02:00 UTC, lon=0 → local 02:00
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [] }) }));
+    const { req, res } = makeReqRes({ lat: '0', lon: '0' });
+    await handler(req, res);
+    expect(res._body.flow.congestion).toBe('clear');
+    vi.useRealTimers();
+  });
+
+  it('estimated is moderate on weekday midday', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-20T12:00:00Z')); // Friday 12:00 UTC, lon=0 → local 12:00
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [] }) }));
+    const { req, res } = makeReqRes({ lat: '0', lon: '0' });
+    await handler(req, res);
+    expect(res._body.flow.congestion).toBe('moderate');
+    vi.useRealTimers();
+  });
+
+  it('weekend midday is moderate, weekend night is clear', async () => {
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [] }) }));
+
+    // Saturday 2026-02-21 12:00 UTC → local 12:00 at lon=0 (weekend midday)
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-21T12:00:00Z'));
+    const { req: req1, res: res1 } = makeReqRes({ lat: '0', lon: '0' });
+    await handler(req1, res1);
+    expect(res1._body.flow.congestion).toBe('moderate');
+
+    // Saturday 2026-02-21 02:00 UTC → local 02:00 at lon=0 (weekend night)
+    vi.setSystemTime(new Date('2026-02-21T02:00:00Z'));
+    const { req: req2, res: res2 } = makeReqRes({ lat: '0', lon: '0' });
+    await handler(req2, res2);
+    expect(res2._body.flow.congestion).toBe('clear');
+
+    vi.useRealTimers();
   });
 
   it('accepts bbox params instead of lat/lon', async () => {

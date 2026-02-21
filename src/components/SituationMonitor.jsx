@@ -191,15 +191,19 @@ export default function SituationMonitor({ dark, t, font }) {
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 9, color: t.textTertiary, fontFamily: font, marginBottom: 4 }}>Congestion</div>
               <CongestionBar value={congestion} t={t} font={font} />
-              {traffic?.flow?.currentSpeed != null && (
-                <div style={{ fontSize: 9, color: t.textTertiary, fontFamily: font, marginTop: 4 }}>
-                  {traffic.flow.currentSpeed} km/h vs {traffic.flow.freeFlowSpeed} free
+              {traffic?.flow?.source === 'estimated' ? (
+                <div style={{ fontSize: 9, color: t.textTertiary, fontFamily: font, marginTop: 4, fontStyle: 'italic' }}>
+                  EST
                 </div>
-              )}
+              ) : traffic?.flow?.currentSpeed != null ? (
+                <div style={{ fontSize: 9, color: t.textTertiary, fontFamily: font, marginTop: 4 }}>
+                  {traffic.flow.currentSpeed} / {traffic.flow.freeFlowSpeed} km/h
+                </div>
+              ) : null}
             </div>
           ) : (
             <div style={{ fontSize: 10, color: t.textTertiary, fontFamily: font }}>
-              {!trafficLoading ? 'Key required' : 'Loading...'}
+              {trafficLoading ? 'Loading...' : null}
             </div>
           )}
           {(traffic?.incidents ?? []).slice(0, 3).map((inc, i) => (

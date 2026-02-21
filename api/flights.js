@@ -1,9 +1,8 @@
-// Flights proxy — OpenSky Network (free, no auth) + AviationStack (100 req/mo)
+// Flights proxy — OpenSky Network (free, no auth)
 // Returns live flight states within a bounding box
 // Cache: 15s in-memory (matches OpenSky rate limits)
 
 const OPENSKY_BASE = 'https://opensky-network.org/api';
-const AVIATIONSTACK_BASE = 'http://api.aviationstack.com/v1';
 
 let cache = { data: null, ts: 0 };
 const CACHE_TTL = 15_000; // 15 seconds
@@ -57,49 +56,6 @@ async function fetchOpenSky(bbox) {
   }
 }
 
-async function fetchAviationStack(bbox) {
-  const key = process.env.AVIATIONSTACK_API_KEY;
-  if (!key) throw new Error('AVIATIONSTACK_API_KEY not set');
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-
-  try {
-    // AviationStack free tier doesn't support bbox — returns global live flights
-    const res = await fetch(`${AVIATIONSTACK_BASE}/flights?access_key=${key}&flight_status=active&limit=100`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!res.ok) throw new Error(`AviationStack ${res.status}`);
-    const json = await res.json();
-
-    const states = (json.data ?? [])
-      .filter(f => f.live?.latitude != null && f.live?.longitude != null)
-      .filter(f => {
-        const { latitude: lat, longitude: lon } = f.live;
-        return lat >= bbox.lamin && lat <= bbox.lamax && lon >= bbox.lomin && lon <= bbox.lomax;
-      })
-      .map(f => ({
-        icao24:   f.flight?.icao ?? '',
-        callsign: f.flight?.iata ?? f.flight?.icao ?? '',
-        origin:   f.departure?.iata ?? '',
-        lastSeen: null,
-        lon:      f.live.longitude,
-        lat:      f.live.latitude,
-        altitude: f.live.altitude ? Math.round(f.live.altitude * 3.28084) : null,
-        onGround: f.live.is_ground,
-        velocity: f.live.speed_horizontal ? Math.round(f.live.speed_horizontal * 0.539957) : null,
-        heading:  f.live.direction ? Math.round(f.live.direction) : null,
-        vertRate: null,
-        dest:     f.arrival?.iata ?? '',
-      }));
-
-    return { source: 'aviationstack', states, count: states.length };
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
-  }
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -123,13 +79,8 @@ export default async function handler(req, res) {
   try {
     result = await fetchOpenSky(bbox);
   } catch (openSkyErr) {
-    console.warn('OpenSky failed, trying AviationStack:', openSkyErr.message);
-    try {
-      result = await fetchAviationStack(bbox);
-    } catch (avErr) {
-      console.error('Both flight APIs failed:', avErr.message);
-      return res.status(502).json({ error: 'Flight data unavailable', states: [], count: 0 });
-    }
+    console.error('OpenSky failed:', openSkyErr.message);
+    return res.status(502).json({ error: 'Flight data unavailable', states: [], count: 0 });
   }
 
   cache = { data: result, ts: now };

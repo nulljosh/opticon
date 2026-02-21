@@ -4,11 +4,32 @@
 const TOMTOM_BASE = 'https://api.tomtom.com/traffic/services/4';
 const HERE_BASE = 'https://data.traffic.hereapi.com/v7';
 
+function estimateCongestion(lon) {
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const localHour = (utcHour + Math.round(lon / 15) + 24) % 24;
+  const isWeekend = [0, 6].includes(now.getUTCDay());
+
+  let congestion;
+  if (isWeekend) {
+    congestion = (localHour >= 10 && localHour < 14) ? 'moderate' : 'clear';
+  } else {
+    if ((localHour >= 7 && localHour < 9) || (localHour >= 17 && localHour < 19)) {
+      congestion = 'heavy';
+    } else if (localHour >= 9 && localHour < 17) {
+      congestion = 'moderate';
+    } else {
+      congestion = 'clear';
+    }
+  }
+
+  return { source: 'estimated', congestion, currentSpeed: null, freeFlowSpeed: null, confidence: null };
+}
+
 async function fetchTomTomFlow(lat, lon) {
   const key = process.env.TOMTOM_API_KEY;
   if (!key) {
-    console.warn('TOMTOM_API_KEY not set — skipping flow data');
-    return null;
+    return estimateCongestion(lon);
   }
 
   const controller = new AbortController();

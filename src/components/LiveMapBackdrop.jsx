@@ -59,6 +59,13 @@ function inferMarketPoint(question, i, center) {
   return null;
 }
 
+function trafficColor(incident) {
+  const text = `${incident?.type || ''} ${incident?.description || ''}`.toLowerCase();
+  if (text.includes('heavy') || text.includes('accident') || text.includes('closure')) return '#ef4444';
+  if (text.includes('moderate') || text.includes('slow') || text.includes('delay')) return '#f59e0b';
+  return '#22c55e';
+}
+
 export default function LiveMapBackdrop({ dark }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -330,7 +337,7 @@ export default function LiveMapBackdrop({ dark }) {
           markersRef.current.push(
             new maplibregl.Marker({
               element: makePulse(
-                'width:11px;height:11px;border-radius:50%;background:#F59E0B;box-shadow:0 0 0 0 rgba(245,158,11,0.55);animation:pulse-amber 1.8s infinite;',
+                'width:30px;height:4px;border-radius:999px;background:repeating-linear-gradient(90deg,#f59e0b 0 6px,#fbbf24 6px 12px);transform:rotate(-22deg);box-shadow:0 0 0 0 rgba(245,158,11,0.35);animation:pulse-amber 1.8s infinite;',
                 inc.description || inc.type,
                 { type: 'construction', title: (inc.type || 'construction').toUpperCase(), detail: inc.description || 'Road/area incident', level: 'local' }
               ),
@@ -343,10 +350,11 @@ export default function LiveMapBackdrop({ dark }) {
         payload.trafficIncidents.slice(0, 20).forEach((inc) => {
           const p = inc.position;
           if (!p || p.lon == null || p.lat == null) return;
+          const lineColor = trafficColor(inc);
           markersRef.current.push(
             new maplibregl.Marker({
               element: makePulse(
-                'width:10px;height:10px;border-radius:50%;background:#F97316;box-shadow:0 0 0 0 rgba(249,115,22,0.55);animation:pulse-amber 1.6s infinite;',
+                `width:34px;height:4px;border-radius:999px;background:${lineColor};transform:rotate(18deg);box-shadow:0 0 0 0 rgba(249,115,22,0.35);animation:pulse-amber 1.6s infinite;`,
                 inc.description || inc.type || 'traffic incident',
                 { type: 'traffic', title: (inc.type || 'traffic').toUpperCase(), detail: inc.description || 'Traffic incident', level: 'local' }
               ),

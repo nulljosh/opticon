@@ -21,6 +21,7 @@ Fast financial terminal with live markets, prediction signals, and a paper-tradi
 - Full-page live map backdrop with pulsing event markers
 - Tactical HUD visual pass inspired by map-intel interfaces (grid + status badge + neon controls)
 - Fast default map startup at NYC, then geolocation recenter when available
+- Small-town zoom behavior: when device location is available, map auto-focuses at neighborhood-level detail (not metro-wide)
 - User location drop-pin (`YOU`) + recenter control
 - Local overlays: traffic incidents + construction/barriers + seismic events
 - Prediction markets projected onto geographic anchors (city/team/politics keyword inference)

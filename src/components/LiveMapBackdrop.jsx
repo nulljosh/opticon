@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const DEFAULT_CENTER = { lat: 40.7128, lon: -74.0060 };
 const LAST_GEO_KEY = 'rise_last_geo';
+const GEO_DETAIL_ZOOM = 13.6;
+const CACHE_DETAIL_ZOOM = 13.2;
+const IP_FALLBACK_ZOOM = 11.5;
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV ? 'https://rise-production.vercel.app' : '');
@@ -152,7 +155,7 @@ export default function LiveMapBackdrop({ dark }) {
         const next = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         setCenter(next);
         setUserPosition(next);
-        mapInstanceRef.current?.flyTo({ center: [next.lon, next.lat], zoom: 11.5, offset: [0, 120], duration: 850 });
+        mapInstanceRef.current?.flyTo({ center: [next.lon, next.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 850 });
         const label = 'Current location';
         setLocLabel(label);
         setGeoState('granted');
@@ -174,7 +177,7 @@ export default function LiveMapBackdrop({ dark }) {
             const next = { lat: json.latitude, lon: json.longitude };
             setCenter(next);
             if (geoErr?.code !== 1) setUserPosition(next);
-            mapInstanceRef.current?.flyTo({ center: [next.lon, next.lat], zoom: 11.5, offset: [0, 120], duration: 850 });
+            mapInstanceRef.current?.flyTo({ center: [next.lon, next.lat], zoom: IP_FALLBACK_ZOOM, offset: [0, 120], duration: 850 });
             const label = json.city ? `${json.city} (IP)` : 'IP fallback';
             setLocLabel(label);
             persistGeo(next, label);
@@ -246,7 +249,7 @@ export default function LiveMapBackdrop({ dark }) {
             ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
             : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
           center: [initCenter.lon, initCenter.lat],
-          zoom: 10.6,
+          zoom: storedGeo ? CACHE_DETAIL_ZOOM : 10.6,
           interactive: true,
           attributionControl: false,
         });
@@ -361,6 +364,19 @@ export default function LiveMapBackdrop({ dark }) {
             offset: [0, -18],
           })
             .setLngLat([userPosition.lon, userPosition.lat])
+            .addTo(mapInstanceRef.current)
+        );
+
+        // Always show at least one nearby local pulse for small-town context.
+        markersRef.current.push(
+          new maplibregl.Marker({
+            element: makePulse(
+              'width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,0.45);animation:pulse-cyan 2s infinite;',
+              'local activity',
+              { type: 'local', title: 'LOCAL ACTIVITY', detail: `Live local pulse near ${locLabel}`, level: 'local' }
+            ),
+          })
+            .setLngLat([center.lon + 0.006, center.lat + 0.004])
             .addTo(mapInstanceRef.current)
         );
 
@@ -526,7 +542,7 @@ export default function LiveMapBackdrop({ dark }) {
             requestLocation();
             return;
           }
-          mapInstanceRef.current?.flyTo({ center: [userPosition.lon, userPosition.lat], zoom: 11.5, offset: [0, 120], duration: 900 });
+          mapInstanceRef.current?.flyTo({ center: [userPosition.lon, userPosition.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 900 });
         }}
         style={{
           position: 'fixed',

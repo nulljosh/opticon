@@ -16,6 +16,7 @@ Rise is a financial terminal app with:
 - Map-first backdrop + overlays (`src/components/LiveMapBackdrop.jsx`)
 - Tactical HUD styling pass (grid overlay + live status badge + neon map controls)
 - Single serverless API entry (`api/gateway.js`) with handlers under `server/api/`
+- Geolocation zoom policy: granted GPS uses neighborhood zoom; cached location uses near-neighborhood zoom; IP fallback stays wider.
 
 ## Situation Monitor Data Sources
 

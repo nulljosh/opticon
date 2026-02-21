@@ -1,10 +1,10 @@
 // Flights proxy — OpenSky Network (free, no auth)
 // Returns live flight states within a bounding box
-// Cache: 15s in-memory (matches OpenSky rate limits)
+// Cache: 15s in-memory keyed by bbox (matches OpenSky rate limits)
 
 const OPENSKY_BASE = 'https://opensky-network.org/api';
 
-let cache = { data: null, ts: 0 };
+const cache = new Map(); // key: bbox string → { data, ts }
 const CACHE_TTL = 15_000; // 15 seconds
 
 function parseBbox(query) {
@@ -67,12 +67,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid bbox: provide lamin, lomin, lamax, lomax' });
   }
 
-  // Serve from 15s in-memory cache when possible
+  const cacheKey = `${bbox.lamin},${bbox.lomin},${bbox.lamax},${bbox.lomax}`;
   const now = Date.now();
-  if (cache.data && now - cache.ts < CACHE_TTL) {
-    res.setHeader('Cache-Control', 'public, max-age=15');
+  const hit = cache.get(cacheKey);
+
+  // Serve from 15s in-memory cache when possible
+  if (hit && now - hit.ts < CACHE_TTL) {
+    res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30');
     res.setHeader('X-Cache', 'HIT');
-    return res.status(200).json(cache.data);
+    return res.status(200).json(hit.data);
   }
 
   let result;
@@ -83,8 +86,8 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Flight data unavailable', states: [], count: 0 });
   }
 
-  cache = { data: result, ts: now };
-  res.setHeader('Cache-Control', 'public, max-age=15');
+  cache.set(cacheKey, { data: result, ts: now });
+  res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30');
   res.setHeader('X-Cache', 'MISS');
   return res.status(200).json(result);
 }

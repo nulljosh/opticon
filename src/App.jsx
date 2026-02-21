@@ -13,6 +13,7 @@ import PricingPage from './components/PricingPage';
 import BrokerPanel from './components/BrokerPanel';
 import CramerPanel from './components/CramerPanel';
 import SituationMonitor from './components/SituationMonitor';
+import LiveMapBackdrop from './components/LiveMapBackdrop';
 import { createBroker } from './utils/broker';
 import { useSubscription } from './hooks/useSubscription';
 
@@ -833,11 +834,10 @@ const reset = useCallback(() => {
 
   // P&L background tint: progressively greener from $1 → $1T
   const pnlBg = (() => {
-    const base = t.bg;
-    if (balance <= 0.5) return `linear-gradient(rgba(255,69,58,0.12),rgba(255,69,58,0.12)),${base}`;
-    if (balance < 1.001) return base;
-    const opacity = bgProgress * 0.28;
-    return `linear-gradient(rgba(48,209,88,${opacity.toFixed(3)}),rgba(48,209,88,${opacity.toFixed(3)})),${base}`;
+    if (balance <= 0.5) return 'linear-gradient(rgba(255,69,58,0.16),rgba(255,69,58,0.16))';
+    if (balance < 1.001) return 'transparent';
+    const opacity = bgProgress * 0.24;
+    return `linear-gradient(rgba(48,209,88,${opacity.toFixed(3)}),rgba(48,209,88,${opacity.toFixed(3)}))`;
   })();
 
   // Keep hero text shadow stable during live ticks to avoid perceived flashing.
@@ -869,8 +869,9 @@ const reset = useCallback(() => {
       fontFamily: font,
       transition: running ? 'none' : 'background 220ms ease',
     }}>
+      <LiveMapBackdrop dark={dark} />
       {/* Header */}
-      <header style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
+      <header style={{ position: 'relative', zIndex: 1, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <a href="https://heyitsmejosh.com" style={{ color: t.textSecondary, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>~</a>
           <span style={{ color: t.textTertiary, fontSize: 13 }}>/</span>
@@ -907,9 +908,11 @@ const reset = useCallback(() => {
       </header>
 
       {/* Scrolling Ticker Tape */}
-      <Ticker items={tickerItems} theme={t} />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <Ticker items={tickerItems} theme={t} />
+      </div>
 
-      <div style={{ padding: 16, maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: 16, maxWidth: 1400, margin: '0 auto' }}>
 
         {/* HERO */}
         <div style={{ textAlign: 'center', padding: '40px 16px 32px', marginBottom: 24 }}>

@@ -342,12 +342,13 @@ export default function LiveMapBackdrop({ dark }) {
 
         payload.events.slice(0, 16).forEach((ev, i) => {
           const kw = geoKeywordMatch(ev.title);
-          const hub = CITY_HUBS[i % CITY_HUBS.length];
-          const ring = (i % 3) * 0.12;
+          // Spread unmatched events in a ring around user's position (visible at neighborhood zoom)
+          const angle = (i / 16) * 2 * Math.PI;
+          const r = 0.018 + (i % 3) * 0.012;
           const target = kw || {
-            lat: hub.lat + (i % 2 ? ring : -ring * 0.7),
-            lon: hub.lon + (i % 2 ? -ring * 0.8 : ring),
-            label: hub.label,
+            lat: center.lat + Math.sin(angle) * r,
+            lon: center.lon + Math.cos(angle) * r,
+            label: locLabel,
           };
           addMarker(
             'width:9px;height:9px;border-radius:50%;background:#22D3EE;box-shadow:0 0 0 0 rgba(34,211,238,0.5);animation:pulse-cyan 2.2s infinite;',

@@ -1,7 +1,8 @@
 import Stripe from 'stripe';
 import { kv } from '@vercel/kv';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+let stripe;
+const getStripe = () => stripe || (stripe = new Stripe(process.env.STRIPE_SECRET_KEY));
 
 export const config = {
   api: {
@@ -28,7 +29,7 @@ export default async function handler(req, res) {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       buf,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET

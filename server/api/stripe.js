@@ -1,7 +1,11 @@
 import Stripe from 'stripe';
 import { kv } from '@vercel/kv';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+let stripe;
+function getStripe() {
+  if (!stripe) stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  return stripe;
+}
 
 // Routes:
 //   POST ?action=checkout  { priceId }    → create checkout session
@@ -49,7 +53,7 @@ export default async function handler(req, res) {
       const baseUrl = process.env.VERCEL_URL 
         ? `https://${process.env.VERCEL_URL}` 
         : 'https://rise-production.vercel.app';
-      const session = await stripe.checkout.sessions.create({
+      const session = await getStripe().checkout.sessions.create({
         mode: 'subscription',
         payment_method_types: ['card'],
         line_items: [{ price: priceId, quantity: 1 }],
@@ -73,7 +77,7 @@ export default async function handler(req, res) {
       const baseUrl = process.env.VERCEL_URL 
         ? `https://${process.env.VERCEL_URL}` 
         : 'https://rise-production.vercel.app';
-      const session = await stripe.billingPortal.sessions.create({
+      const session = await getStripe().billingPortal.sessions.create({
         customer: cid,
         return_url: baseUrl,
       });

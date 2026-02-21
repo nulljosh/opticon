@@ -530,18 +530,28 @@ export default function App() {
         // Tighter stop loss near milestones
         const stopLossPercent = nearMilestone ? 0.985 : 0.983; // 1.5% vs 1.7%
 
-        setPosition({
+        const newPos = {
           sym: best.sym,
           entry: best.price,
           size: shares, // NOW IN SHARES, not dollars
           stop: best.price * stopLossPercent,
           target: best.price * takeProfitMultiplier,
-        });
+        };
+        setPosition(newPos);
         setLastTraded(best.sym);
         setTrades(t => {
           const updated = [...t, { type: 'BUY', sym: best.sym, price: best.price.toFixed(2) }];
           return updated.length > 100 ? updated.slice(-100) : updated;
         });
+
+        // Emit broker signal
+        const signal = { action: 'buy', sym: best.sym, entry: best.price, stop: newPos.stop, target: newPos.target, size: shares, ts: Date.now(), sent: false };
+        setSignalLog(prev => [...prev.slice(-49), signal]);
+        if (autoSend && brokerRef.current?.connected) {
+          brokerRef.current.placeOrder(signal).then(() => {
+            setSignalLog(prev => prev.map(s => s.ts === signal.ts ? { ...s, sent: true } : s));
+          }).catch(err => console.warn('[BROKER] signal send failed:', err.message));
+        }
       } catch (err) {
         console.error('Position creation failed:', err);
       }

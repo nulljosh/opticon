@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
 const DEFAULT_CENTER = { lat: 40.7128, lon: -74.0060 };
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? 'https://rise-production.vercel.app' : '');
+
+function apiPath(path) {
+  return `${API_BASE}${path}`;
+}
 
 export default function LiveMapBackdrop({ dark }) {
   const mapRef = useRef(null);
@@ -9,7 +16,7 @@ export default function LiveMapBackdrop({ dark }) {
   const [center, setCenter] = useState(DEFAULT_CENTER);
   const [centerReady, setCenterReady] = useState(false);
   const [locLabel, setLocLabel] = useState('Locating…');
-  const [payload, setPayload] = useState({ incidents: [], earthquakes: [], events: [] });
+  const [payload, setPayload] = useState({ incidents: [], trafficIncidents: [], earthquakes: [], events: [] });
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -57,7 +64,7 @@ export default function LiveMapBackdrop({ dark }) {
             ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
             : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
           center: [center.lon, center.lat],
-          zoom: 6.2,
+          zoom: 10.6,
           interactive: true,
           attributionControl: false,
         });
@@ -80,27 +87,34 @@ export default function LiveMapBackdrop({ dark }) {
 
   useEffect(() => {
     if (!mapInstanceRef.current) return;
-    mapInstanceRef.current.flyTo({ center: [center.lon, center.lat], zoom: 6, duration: 1200 });
+    mapInstanceRef.current.flyTo({
+      center: [center.lon, center.lat],
+      zoom: 11,
+      offset: [0, 120],
+      duration: 1200,
+    });
   }, [center.lat, center.lon]);
 
   useEffect(() => {
     let cancelled = false;
     const fetchSituation = async () => {
       try {
-        const [inc, eq, ev] = await Promise.all([
-          fetch(`/api/incidents?lat=${center.lat}&lon=${center.lon}`).then(r => r.json()).catch(() => ({ incidents: [] })),
-          fetch('/api/earthquakes').then(r => r.json()).catch(() => ({ earthquakes: [] })),
-          fetch('/api/events').then(r => r.json()).catch(() => ({ events: [] })),
+        const [inc, traffic, eq, ev] = await Promise.all([
+          fetch(apiPath(`/api/incidents?lat=${center.lat}&lon=${center.lon}`)).then(r => r.json()).catch(() => ({ incidents: [] })),
+          fetch(apiPath(`/api/traffic?lat=${center.lat}&lon=${center.lon}`)).then(r => r.json()).catch(() => ({ incidents: [] })),
+          fetch(apiPath('/api/earthquakes')).then(r => r.json()).catch(() => ({ earthquakes: [] })),
+          fetch(apiPath('/api/events')).then(r => r.json()).catch(() => ({ events: [] })),
         ]);
         if (!cancelled) {
           setPayload({
             incidents: inc.incidents || [],
+            trafficIncidents: traffic.incidents || [],
             earthquakes: eq.earthquakes || [],
             events: ev.events || [],
           });
         }
       } catch {
-        if (!cancelled) setPayload({ incidents: [], earthquakes: [], events: [] });
+        if (!cancelled) setPayload({ incidents: [], trafficIncidents: [], earthquakes: [], events: [] });
       }
     };
     fetchSituation();
@@ -153,11 +167,26 @@ export default function LiveMapBackdrop({ dark }) {
           markersRef.current.push(
             new maplibregl.Marker({
               element: makePulse(
-                'width:9px;height:9px;border-radius:50%;background:#F59E0B;box-shadow:0 0 0 0 rgba(245,158,11,0.55);animation:pulse-amber 1.8s infinite;',
+                'width:11px;height:11px;border-radius:50%;background:#F59E0B;box-shadow:0 0 0 0 rgba(245,158,11,0.55);animation:pulse-amber 1.8s infinite;',
                 inc.description || inc.type
               ),
             })
               .setLngLat([inc.lon, inc.lat])
+              .addTo(mapInstanceRef.current)
+          );
+        });
+
+        payload.trafficIncidents.slice(0, 20).forEach((inc) => {
+          const p = inc.position;
+          if (!p || p.lon == null || p.lat == null) return;
+          markersRef.current.push(
+            new maplibregl.Marker({
+              element: makePulse(
+                'width:10px;height:10px;border-radius:50%;background:#F97316;box-shadow:0 0 0 0 rgba(249,115,22,0.55);animation:pulse-amber 1.6s infinite;',
+                inc.description || inc.type || 'traffic incident'
+              ),
+            })
+              .setLngLat([p.lon, p.lat])
               .addTo(mapInstanceRef.current)
           );
         });
@@ -178,7 +207,7 @@ export default function LiveMapBackdrop({ dark }) {
         });
 
         // Global event pulses (visualized near center for ambient awareness).
-        payload.events.slice(0, 3).forEach((ev, i) => {
+        payload.events.slice(0, 4).forEach((ev, i) => {
           const offsetLon = center.lon + (i - 1) * 0.22;
           const offsetLat = center.lat + (i % 2 ? 0.18 : -0.18);
           markersRef.current.push(
@@ -213,7 +242,6 @@ export default function LiveMapBackdrop({ dark }) {
           inset: 0,
           zIndex: 0,
           pointerEvents: 'auto',
-          filter: dark ? 'saturate(1.08) brightness(0.78)' : 'saturate(1.1) brightness(0.92)',
           filter: dark ? 'saturate(1.12) brightness(0.9)' : 'saturate(1.1) brightness(0.95)',
         }}
       />
@@ -229,7 +257,7 @@ export default function LiveMapBackdrop({ dark }) {
         }}
       />
       <button
-        onClick={() => mapInstanceRef.current?.flyTo({ center: [center.lon, center.lat], zoom: 8, duration: 900 })}
+        onClick={() => mapInstanceRef.current?.flyTo({ center: [center.lon, center.lat], zoom: 11.5, offset: [0, 120], duration: 900 })}
         style={{
           position: 'fixed',
           right: 14,

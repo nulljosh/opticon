@@ -16,6 +16,17 @@ Fast financial terminal with live markets, prediction signals, and a paper-tradi
 - Global geopolitical event feed (GDELT panel)
 - Vitest + Playwright tests
 
+## Map-First Mode
+
+- Full-page live map backdrop with event pulses
+- User location pin + recenter control
+- Local overlays: traffic incidents + construction/barriers + seismic events
+- Global feed pulses: geopolitical events
+
+Local dev fallback:
+- In dev, map/event calls can use `VITE_API_BASE_URL`
+- If unset, dev defaults to `https://rise-production.vercel.app` for JSON-safe API responses
+
 ## Run
 
 ```bash

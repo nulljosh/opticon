@@ -10,8 +10,6 @@ import { tldr } from './utils/helpers';
 import { StatusBar, Card } from './components/ui';
 import Ticker from './components/Ticker';
 import PricingPage from './components/PricingPage';
-import BrokerPanel from './components/BrokerPanel';
-import CramerPanel from './components/CramerPanel';
 import SituationMonitor from './components/SituationMonitor';
 import LiveMapBackdrop from './components/LiveMapBackdrop';
 import { createBroker } from './utils/broker';
@@ -148,6 +146,7 @@ const categoryKeywords = {
 
 export default function App() {
   const [dark, setDark] = useState(true);
+  const [mapFocus, setMapFocus] = useState(false);
   const t = getTheme(dark);
   const font = '-apple-system, BlinkMacSystemFont, system-ui, sans-serif';
   const [showPricing, setShowPricing] = useState(false);
@@ -871,7 +870,7 @@ const reset = useCallback(() => {
     }}>
       <LiveMapBackdrop dark={dark} />
       {/* Header */}
-      <header style={{ position: 'relative', zIndex: 1, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
+      <header style={{ position: 'relative', zIndex: 1, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}`, pointerEvents: mapFocus ? 'none' : 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <a href="https://heyitsmejosh.com" style={{ color: t.textSecondary, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>~</a>
           <span style={{ color: t.textTertiary, fontSize: 13 }}>/</span>
@@ -908,11 +907,11 @@ const reset = useCallback(() => {
       </header>
 
       {/* Scrolling Ticker Tape */}
-      <div style={{ position: 'relative', zIndex: 1 }}>
+      <div style={{ position: 'relative', zIndex: 1, pointerEvents: mapFocus ? 'none' : 'auto' }}>
         <Ticker items={tickerItems} theme={t} />
       </div>
 
-      <div style={{ position: 'relative', zIndex: 1, padding: 16, maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: 16, maxWidth: 1400, margin: '0 auto', pointerEvents: mapFocus ? 'none' : 'auto', opacity: mapFocus ? 0.58 : 1, transition: 'opacity 180ms ease' }}>
 
         {/* HERO */}
         <div style={{ textAlign: 'center', padding: '40px 16px 32px', marginBottom: 24 }}>
@@ -1149,29 +1148,6 @@ const reset = useCallback(() => {
             </div>
           </Card>
 
-          {/* Broker Integration */}
-          <BrokerPanel
-            dark={dark}
-            t={t}
-            font={font}
-            isPro={isPro}
-            onUpgrade={() => setShowPricing(true)}
-            config={brokerConfig}
-            onConfigChange={(cfg) => {
-              setBrokerConfig(cfg);
-              localStorage.setItem('rise_broker_config', JSON.stringify(cfg));
-            }}
-            signalLog={signalLog}
-            autoSend={autoSend}
-            onAutoSendChange={(v) => {
-              setAutoSend(v);
-              localStorage.setItem('rise_broker_autosend', JSON.stringify(v));
-            }}
-          />
-
-          {/* Cramer Tracker */}
-          <CramerPanel dark={dark} t={t} font={font} stocks={stocks} />
-
         </div>
 
         {/* Footer */}
@@ -1185,6 +1161,29 @@ const reset = useCallback(() => {
 
       {/* Pricing Modal */}
       {showPricing && <PricingPage dark={dark} t={t} onClose={() => setShowPricing(false)} />}
+
+      <button
+        onClick={() => setMapFocus(v => !v)}
+        style={{
+          position: 'fixed',
+          top: 86,
+          right: 14,
+          zIndex: 1100,
+          border: `1px solid ${t.border}`,
+          borderRadius: 999,
+          background: mapFocus ? `${t.cyan}22` : t.surface,
+          color: mapFocus ? t.cyan : t.textSecondary,
+          fontFamily: font,
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.05em',
+          padding: '7px 12px',
+          cursor: 'pointer',
+          pointerEvents: 'auto',
+        }}
+      >
+        {mapFocus ? 'EXIT MAP FOCUS' : 'MAP FOCUS'}
+      </button>
 
       {/* Market tooltip */}
       {(hoveredMarket || tappedMarket) && (() => {

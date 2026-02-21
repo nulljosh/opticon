@@ -84,6 +84,7 @@ export default function LiveMapBackdrop({ dark }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
+  const centerRef = useRef(storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER);
   const sawGeoGrantedRef = useRef(false);
   const [center, setCenter] = useState(storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER);
   const [userPosition, setUserPosition] = useState(storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER);
@@ -92,6 +93,10 @@ export default function LiveMapBackdrop({ dark }) {
   const [geoState, setGeoState] = useState(storedGeo ? 'cached' : 'checking');
   const [payload, setPayload] = useState({ incidents: [], trafficIncidents: [], earthquakes: [], events: [], markets: [] });
   const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    centerRef.current = center;
+  }, [center]);
 
   const fallbackPayload = (baseCenter) => {
     const hub = nearestHub(baseCenter.lat, baseCenter.lon);
@@ -234,12 +239,13 @@ export default function LiveMapBackdrop({ dark }) {
         const maplibregl = (await import('maplibre-gl')).default;
         await import('maplibre-gl/dist/maplibre-gl.css');
         if (!mapRef.current || mapInstanceRef.current) return;
+        const initCenter = centerRef.current;
         map = new maplibregl.Map({
           container: mapRef.current,
           style: dark
             ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
             : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-          center: [center.lon, center.lat],
+          center: [initCenter.lon, initCenter.lat],
           zoom: 10.6,
           interactive: true,
           attributionControl: false,
@@ -363,7 +369,7 @@ export default function LiveMapBackdrop({ dark }) {
           markersRef.current.push(
             new maplibregl.Marker({
               element: makePulse(
-                'width:30px;height:4px;border-radius:999px;background:repeating-linear-gradient(90deg,#f59e0b 0 6px,#fbbf24 6px 12px);transform:rotate(-22deg);box-shadow:0 0 0 0 rgba(245,158,11,0.35);animation:pulse-amber 1.8s infinite;',
+                'width:44px;height:6px;border-radius:999px;background:repeating-linear-gradient(90deg,#f59e0b 0 7px,#fbbf24 7px 14px);border:1px solid rgba(0,0,0,0.22);transform:rotate(-22deg);box-shadow:0 0 0 0 rgba(245,158,11,0.35);animation:pulse-amber 1.8s infinite;',
                 inc.description || inc.type,
                 { type: 'construction', title: (inc.type || 'construction').toUpperCase(), detail: inc.description || 'Road/area incident', level: 'local' }
               ),
@@ -380,7 +386,7 @@ export default function LiveMapBackdrop({ dark }) {
           markersRef.current.push(
             new maplibregl.Marker({
               element: makePulse(
-                `width:34px;height:4px;border-radius:999px;background:${lineColor};transform:rotate(18deg);box-shadow:0 0 0 0 rgba(249,115,22,0.35);animation:pulse-amber 1.6s infinite;`,
+                `width:48px;height:6px;border-radius:999px;background:${lineColor};border:1px solid rgba(0,0,0,0.2);transform:rotate(18deg);box-shadow:0 0 0 0 rgba(249,115,22,0.35);animation:pulse-amber 1.6s infinite;`,
                 inc.description || inc.type || 'traffic incident',
                 { type: 'traffic', title: (inc.type || 'traffic').toUpperCase(), detail: inc.description || 'Traffic incident', level: 'local' }
               ),

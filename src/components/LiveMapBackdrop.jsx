@@ -9,9 +9,7 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV ? 'https://rise-production.vercel.app' : '');
 
-function apiPath(path) {
-  return `${API_BASE}${path}`;
-}
+const apiPath = (path) => `${API_BASE}${path}`;
 
 function loadStoredGeo() {
   try {
@@ -54,25 +52,32 @@ const CITY_HUBS = [
 ];
 
 function nearestHub(lat, lon) {
-  let best = CITY_HUBS[0];
-  let bestDist = Infinity;
-  for (const hub of CITY_HUBS) {
-    const dLat = hub.lat - lat;
-    const dLon = hub.lon - lon;
-    const dist = dLat * dLat + dLon * dLon;
-    if (dist < bestDist) {
-      best = hub;
-      bestDist = dist;
-    }
-  }
-  return best;
+  return CITY_HUBS.reduce((best, hub) => {
+    const d = (hub.lat - lat) ** 2 + (hub.lon - lon) ** 2;
+    const bd = (best.lat - lat) ** 2 + (best.lon - lon) ** 2;
+    return d < bd ? hub : best;
+  }, CITY_HUBS[0]);
 }
 
-function inferMarketPoint(question, i, center) {
+function geoKeywordMatch(text) {
   for (const k of GEO_KEYWORDS) {
-    if (k.re.test(question || '')) return { lat: k.lat, lon: k.lon, label: k.label };
+    if (k.re.test(text || '')) return { lat: k.lat, lon: k.lon, label: k.label };
   }
   return null;
+}
+
+function fallbackPayload(baseCenter) {
+  const hub = nearestHub(baseCenter.lat, baseCenter.lon);
+  return {
+    incidents: [{ type: 'estimated-construction', lat: hub.lat, lon: hub.lon, description: `Road works advisory near ${hub.label} (fallback)` }],
+    trafficIncidents: [{ type: 'ESTIMATED', description: `Traffic slowdown estimate near ${hub.label}`, position: { lat: hub.lat + 0.01, lon: hub.lon - 0.01 } }],
+    earthquakes: [],
+    events: [
+      { title: `Local event pulse near ${hub.label}`, country: 'LOCAL', url: null },
+      { title: 'Transit disruption advisory', country: 'LOCAL', url: null },
+    ],
+    markets: [],
+  };
 }
 
 function trafficColor(incident) {
@@ -87,76 +92,40 @@ function mapsLink(lat, lon, zoom = 14) {
 }
 
 function hasSource(data) {
-  return Boolean(
-    data &&
-    typeof data.source === 'string' &&
-    data.source.trim().length > 0 &&
-    typeof data.link === 'string' &&
-    /^https?:\/\//.test(data.link)
-  );
+  return Boolean(data?.source?.trim() && /^https?:\/\//.test(data?.link));
 }
 
 export default function LiveMapBackdrop({ dark }) {
   const storedGeo = loadStoredGeo();
+  const initPos = storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER;
+
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
-  const centerRef = useRef(storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER);
+  const centerRef = useRef(initPos);
   const sawGeoGrantedRef = useRef(false);
-  const [center, setCenter] = useState(storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER);
-  const [userPosition, setUserPosition] = useState(storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER);
-  const [centerReady] = useState(true);
   const pendingFlyRef = useRef(null);
+
+  const [center, setCenter] = useState(initPos);
+  const [userPosition, setUserPosition] = useState(initPos);
   const [locLabel, setLocLabel] = useState(storedGeo?.label || 'Locating…');
   const [geoState, setGeoState] = useState(storedGeo ? 'cached' : 'checking');
   const [payload, setPayload] = useState({ incidents: [], trafficIncidents: [], earthquakes: [], events: [], markets: [] });
   const [selected, setSelected] = useState(null);
 
-  useEffect(() => {
-    centerRef.current = center;
-  }, [center]);
-
-  const fallbackPayload = (baseCenter) => {
-    const hub = nearestHub(baseCenter.lat, baseCenter.lon);
-    return {
-    incidents: [
-      {
-        type: 'estimated-construction',
-        lat: hub.lat,
-        lon: hub.lon,
-        description: `Road works advisory near ${hub.label} (fallback)`,
-      },
-    ],
-    trafficIncidents: [
-      {
-        type: 'ESTIMATED',
-        description: `Traffic slowdown estimate near ${hub.label}`,
-        position: { lat: hub.lat + 0.01, lon: hub.lon - 0.01 },
-      },
-    ],
-    earthquakes: [],
-    events: [
-      { title: `Local event pulse near ${hub.label}`, country: 'LOCAL', url: null },
-      { title: 'Transit disruption advisory', country: 'LOCAL', url: null },
-    ],
-    markets: [],
-  };
-  };
+  useEffect(() => { centerRef.current = center; }, [center]);
 
   useEffect(() => {
-    try {
-      sawGeoGrantedRef.current = localStorage.getItem('rise_geo_granted') === '1';
-    } catch {
-      sawGeoGrantedRef.current = false;
-    }
+    try { sawGeoGrantedRef.current = localStorage.getItem('rise_geo_granted') === '1'; } catch { sawGeoGrantedRef.current = false; }
   }, []);
 
   const persistGeo = useCallback((next, label) => {
-    try {
-      localStorage.setItem(LAST_GEO_KEY, JSON.stringify({ ...next, label, ts: Date.now() }));
-    } catch {
-      // ignore storage failures
-    }
+    try { localStorage.setItem(LAST_GEO_KEY, JSON.stringify({ ...next, label, ts: Date.now() })); } catch {}
+  }, []);
+
+  const doFlyTo = useCallback((params) => {
+    if (mapInstanceRef.current) mapInstanceRef.current.flyTo(params);
+    else pendingFlyRef.current = params;
   }, []);
 
   const requestLocation = useCallback(() => {
@@ -170,37 +139,21 @@ export default function LiveMapBackdrop({ dark }) {
         const next = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         setCenter(next);
         setUserPosition(next);
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.flyTo({ center: [next.lon, next.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 850 });
-        } else {
-          pendingFlyRef.current = { center: [next.lon, next.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 850 };
-        }
-        const label = 'Current location';
-        setLocLabel(label);
+        doFlyTo({ center: [next.lon, next.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 850 });
+        setLocLabel('Current location');
         setGeoState('granted');
-        persistGeo(next, label);
-        try {
-          localStorage.setItem('rise_geo_granted', '1');
-          sawGeoGrantedRef.current = true;
-        } catch {
-          // ignore storage failures
-        }
+        persistGeo(next, 'Current location');
+        try { localStorage.setItem('rise_geo_granted', '1'); sawGeoGrantedRef.current = true; } catch {}
       },
       async (geoErr) => {
-        if (geoErr?.code === 1) setGeoState('denied');
-        else setGeoState('unavailable');
+        setGeoState(geoErr?.code === 1 ? 'denied' : 'unavailable');
         try {
-          const res = await fetch('https://ipapi.co/json/');
-          const json = await res.json();
-          if (json && typeof json.latitude === 'number' && typeof json.longitude === 'number') {
+          const json = await fetch('https://ipapi.co/json/').then(r => r.json());
+          if (typeof json?.latitude === 'number' && typeof json?.longitude === 'number') {
             const next = { lat: json.latitude, lon: json.longitude };
             setCenter(next);
             if (geoErr?.code !== 1) setUserPosition(next);
-            if (mapInstanceRef.current) {
-              mapInstanceRef.current.flyTo({ center: [next.lon, next.lat], zoom: IP_FALLBACK_ZOOM, offset: [0, 120], duration: 850 });
-            } else {
-              pendingFlyRef.current = { center: [next.lon, next.lat], zoom: IP_FALLBACK_ZOOM, offset: [0, 120], duration: 850 };
-            }
+            doFlyTo({ center: [next.lon, next.lat], zoom: IP_FALLBACK_ZOOM, offset: [0, 120], duration: 850 });
             const label = json.city ? `${json.city} (IP)` : 'IP fallback';
             setLocLabel(label);
             persistGeo(next, label);
@@ -208,57 +161,41 @@ export default function LiveMapBackdrop({ dark }) {
             setLocLabel('Location unavailable');
           }
         } catch {
-          // fallback stays on default center
           setLocLabel('Location unavailable');
         }
       },
       { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
     );
-  }, [persistGeo]);
+  }, [doFlyTo, persistGeo]);
 
-  useEffect(() => {
-    requestLocation();
-  }, [requestLocation]);
+  useEffect(() => { requestLocation(); }, [requestLocation]);
 
   useEffect(() => {
     if (!navigator.permissions?.query) return;
     let statusRef = null;
     const onChange = () => {
-      if (statusRef?.state === 'granted') {
-        setGeoState('granted');
-        requestLocation();
-        if (!sawGeoGrantedRef.current) {
-          try { localStorage.setItem('rise_geo_granted', '1'); } catch {}
-          sawGeoGrantedRef.current = true;
-        }
+      if (statusRef?.state !== 'granted') return;
+      setGeoState('granted');
+      requestLocation();
+      if (!sawGeoGrantedRef.current) {
+        try { localStorage.setItem('rise_geo_granted', '1'); } catch {}
+        sawGeoGrantedRef.current = true;
       }
     };
-
-    navigator.permissions
-      .query({ name: 'geolocation' })
-      .then((status) => {
-        statusRef = status;
-        setGeoState(status.state);
-        if (typeof status.addEventListener === 'function') {
-          status.addEventListener('change', onChange);
-        } else {
-          status.onchange = onChange;
-        }
-      })
-      .catch(() => {});
-
+    navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+      statusRef = status;
+      setGeoState(status.state);
+      if (typeof status.addEventListener === 'function') status.addEventListener('change', onChange);
+      else status.onchange = onChange;
+    }).catch(() => {});
     return () => {
       if (!statusRef) return;
-      if (typeof statusRef.removeEventListener === 'function') {
-        statusRef.removeEventListener('change', onChange);
-      } else if (statusRef.onchange === onChange) {
-        statusRef.onchange = null;
-      }
+      if (typeof statusRef.removeEventListener === 'function') statusRef.removeEventListener('change', onChange);
+      else if (statusRef.onchange === onChange) statusRef.onchange = null;
     };
   }, [requestLocation]);
 
   useEffect(() => {
-    if (!centerReady) return;
     let map;
     (async () => {
       try {
@@ -277,14 +214,13 @@ export default function LiveMapBackdrop({ dark }) {
           attributionControl: false,
         });
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-        const onMoveEnd = () => {
+        map.on('moveend', () => {
           const c = map.getCenter();
           setCenter((prev) => {
             if (Math.abs(prev.lat - c.lat) < 0.08 && Math.abs(prev.lon - c.lng) < 0.08) return prev;
             return { lat: c.lat, lon: c.lng };
           });
-        };
-        map.on('moveend', onMoveEnd);
+        });
         mapInstanceRef.current = map;
         map.on('load', () => {
           if (pendingFlyRef.current) {
@@ -296,7 +232,6 @@ export default function LiveMapBackdrop({ dark }) {
         console.warn('Backdrop map failed:', err.message);
       }
     })();
-
     return () => {
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
@@ -305,7 +240,7 @@ export default function LiveMapBackdrop({ dark }) {
         mapInstanceRef.current = null;
       }
     };
-  }, [dark, centerReady]);
+  }, [dark]);
 
   useEffect(() => {
     let cancelled = false;
@@ -319,23 +254,14 @@ export default function LiveMapBackdrop({ dark }) {
           fetch(apiPath('/api/markets')).then(r => r.json()).catch(() => []),
         ]);
         if (!cancelled) {
-          const merged = {
-            incidents: inc.incidents || [],
-            trafficIncidents: traffic.incidents || [],
+          const fb = fallbackPayload(center);
+          setPayload({
+            incidents: inc.incidents?.length ? inc.incidents : fb.incidents,
+            trafficIncidents: traffic.incidents?.length ? traffic.incidents : fb.trafficIncidents,
             earthquakes: eq.earthquakes || [],
-            events: ev.events || [],
+            events: ev.events?.length ? ev.events : fb.events,
             markets: Array.isArray(mk) ? mk.slice(0, 20) : [],
-          };
-          if (merged.incidents.length === 0) {
-            merged.incidents = fallbackPayload(center).incidents;
-          }
-          if (merged.trafficIncidents.length === 0) {
-            merged.trafficIncidents = fallbackPayload(center).trafficIncidents;
-          }
-          if (merged.events.length === 0) {
-            merged.events = fallbackPayload(center).events;
-          }
-          setPayload(merged);
+          });
         }
       } catch {
         if (!cancelled) setPayload(fallbackPayload(center));
@@ -343,10 +269,7 @@ export default function LiveMapBackdrop({ dark }) {
     };
     fetchSituation();
     const id = setInterval(fetchSituation, 120000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
+    return () => { cancelled = true; clearInterval(id); };
   }, [center.lat, center.lon]);
 
   useEffect(() => {
@@ -357,213 +280,101 @@ export default function LiveMapBackdrop({ dark }) {
         markersRef.current.forEach(m => m.remove());
         markersRef.current = [];
 
-        const makePulse = (css, title, data) => {
+        const addMarker = (css, title, data, lon, lat) => {
+          if (!hasSource(data)) return;
           const el = document.createElement('div');
           el.style.cssText = css;
           if (title) el.title = title;
-          if (data) {
-            el.addEventListener('mouseenter', () => setSelected(data));
-            el.addEventListener('click', (e) => {
-              e.stopPropagation();
-              setSelected(data);
-            });
-          }
-          return el;
+          el.addEventListener('mouseenter', () => setSelected(data));
+          el.addEventListener('click', (e) => { e.stopPropagation(); setSelected(data); });
+          markersRef.current.push(
+            new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(mapInstanceRef.current)
+          );
         };
 
-        // User pin (red drop-pin style)
-        const userData = {
-          type: 'location',
-          title: 'You',
-          detail: locLabel,
-          level: 'local',
-          source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation',
-          link: mapsLink(userPosition.lat, userPosition.lon),
-        };
-        if (hasSource(userData)) {
-          markersRef.current.push(
-            new maplibregl.Marker({
-              element: makePulse(
-                'width:18px;height:24px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 32\'><path d=\'M12 0C5.4 0 0 5.4 0 12c0 8.8 12 20 12 20s12-11.2 12-20C24 5.4 18.6 0 12 0z\' fill=\'%23ff3b30\'/><circle cx=\'12\' cy=\'12\' r=\'5\' fill=\'white\'/></svg>");background-size:contain;background-repeat:no-repeat;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.35));',
-                'you',
-                userData
-              ),
-            })
-              .setLngLat([userPosition.lon, userPosition.lat])
-              .addTo(mapInstanceRef.current)
-          );
-        }
+        // User pin
+        addMarker(
+          'width:18px;height:24px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 32\'><path d=\'M12 0C5.4 0 0 5.4 0 12c0 8.8 12 20 12 20s12-11.2 12-20C24 5.4 18.6 0 12 0z\' fill=\'%23ff3b30\'/><circle cx=\'12\' cy=\'12\' r=\'5\' fill=\'white\'/></svg>");background-size:contain;background-repeat:no-repeat;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.35));',
+          'you',
+          { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: mapsLink(userPosition.lat, userPosition.lon) },
+          userPosition.lon, userPosition.lat
+        );
 
-        // Always show at least one nearby local pulse for small-town context.
-        const localData = {
-          type: 'local',
-          title: 'LOCAL ACTIVITY',
-          detail: `Live local pulse near ${locLabel}`,
-          level: 'local',
-          source: 'Local search',
-          link: `https://www.google.com/search?q=${encodeURIComponent(`events near ${locLabel}`)}`,
-        };
-        if (hasSource(localData)) {
-          markersRef.current.push(
-            new maplibregl.Marker({
-              element: makePulse(
-                'width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,0.45);animation:pulse-cyan 2s infinite;',
-                'local activity',
-                localData
-              ),
-            })
-              .setLngLat([center.lon + 0.006, center.lat + 0.004])
-              .addTo(mapInstanceRef.current)
-          );
-        }
+        // Local activity pulse
+        addMarker(
+          'width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,0.45);animation:pulse-cyan 2s infinite;',
+          'local activity',
+          { type: 'local', title: 'LOCAL ACTIVITY', detail: `Live local pulse near ${locLabel}`, level: 'local', source: 'Local search', link: `https://www.google.com/search?q=${encodeURIComponent(`events near ${locLabel}`)}` },
+          center.lon + 0.006, center.lat + 0.004
+        );
 
         payload.incidents.slice(0, 25).forEach((inc) => {
           if (inc.lon == null || inc.lat == null) return;
-          const data = {
-            type: 'construction',
-            title: (inc.type || 'construction').toUpperCase(),
-            detail: inc.description || 'Road/area incident',
-            level: 'local',
-            source: 'OpenStreetMap / Overpass',
-            link: mapsLink(inc.lat, inc.lon),
-          };
-          if (!hasSource(data)) return;
-          markersRef.current.push(
-            new maplibregl.Marker({
-              element: makePulse(
-                'width:44px;height:6px;border-radius:999px;background:repeating-linear-gradient(90deg,#f59e0b 0 7px,#fbbf24 7px 14px);border:1px solid rgba(0,0,0,0.22);transform:rotate(-22deg);box-shadow:0 0 0 0 rgba(245,158,11,0.35);animation:pulse-amber 1.8s infinite;',
-                inc.description || inc.type,
-                data
-              ),
-            })
-              .setLngLat([inc.lon, inc.lat])
-              .addTo(mapInstanceRef.current)
+          addMarker(
+            'width:44px;height:6px;border-radius:999px;background:repeating-linear-gradient(90deg,#f59e0b 0 7px,#fbbf24 7px 14px);border:1px solid rgba(0,0,0,0.22);transform:rotate(-22deg);box-shadow:0 0 0 0 rgba(245,158,11,0.35);animation:pulse-amber 1.8s infinite;',
+            inc.description || inc.type,
+            { type: 'construction', title: (inc.type || 'construction').toUpperCase(), detail: inc.description || 'Road/area incident', level: 'local', source: 'OpenStreetMap / Overpass', link: mapsLink(inc.lat, inc.lon) },
+            inc.lon, inc.lat
           );
         });
 
         payload.trafficIncidents.slice(0, 20).forEach((inc) => {
           const p = inc.position;
           if (!p || p.lon == null || p.lat == null) return;
-          const lineColor = trafficColor(inc);
-          const data = {
-            type: 'traffic',
-            title: (inc.type || 'traffic').toUpperCase(),
-            detail: inc.description || 'Traffic incident',
-            level: 'local',
-            source: 'Traffic feed / fallback model',
-            link: mapsLink(p.lat, p.lon),
-          };
-          if (!hasSource(data)) return;
-          markersRef.current.push(
-            new maplibregl.Marker({
-              element: makePulse(
-                `width:48px;height:6px;border-radius:999px;background:${lineColor};border:1px solid rgba(0,0,0,0.2);transform:rotate(18deg);box-shadow:0 0 0 0 rgba(249,115,22,0.35);animation:pulse-amber 1.6s infinite;`,
-                inc.description || inc.type || 'traffic incident',
-                data
-              ),
-            })
-              .setLngLat([p.lon, p.lat])
-              .addTo(mapInstanceRef.current)
+          addMarker(
+            `width:48px;height:6px;border-radius:999px;background:${trafficColor(inc)};border:1px solid rgba(0,0,0,0.2);transform:rotate(18deg);box-shadow:0 0 0 0 rgba(249,115,22,0.35);animation:pulse-amber 1.6s infinite;`,
+            inc.description || inc.type || 'traffic incident',
+            { type: 'traffic', title: (inc.type || 'traffic').toUpperCase(), detail: inc.description || 'Traffic incident', level: 'local', source: 'Traffic feed / fallback model', link: mapsLink(p.lat, p.lon) },
+            p.lon, p.lat
           );
         });
 
         payload.earthquakes.slice(0, 12).forEach((eq) => {
           if (eq.lon == null || eq.lat == null) return;
           const size = Math.max(10, Math.min(18, (eq.mag || 0) * 2.4));
-          const data = {
-            type: 'seismic',
-            title: `M${eq.mag?.toFixed?.(1) ?? eq.mag}`,
-            detail: eq.place || 'Earthquake',
-            level: (eq.mag || 0) >= 6 ? 'high' : (eq.mag || 0) >= 4 ? 'elevated' : 'monitor',
-            source: 'USGS Earthquake Catalog',
-            link: eq.url || 'https://earthquake.usgs.gov/earthquakes/map/',
-          };
-          if (!hasSource(data)) return;
-          markersRef.current.push(
-            new maplibregl.Marker({
-              element: makePulse(
-                `width:${size}px;height:${size}px;border-radius:50%;background:rgba(239,68,68,0.78);box-shadow:0 0 0 0 rgba(239,68,68,0.5);animation:pulse-red 1.9s infinite;`,
-                `M${eq.mag} ${eq.place || ''}`,
-                data
-              ),
-            })
-              .setLngLat([eq.lon, eq.lat])
-              .addTo(mapInstanceRef.current)
+          addMarker(
+            `width:${size}px;height:${size}px;border-radius:50%;background:rgba(239,68,68,0.78);box-shadow:0 0 0 0 rgba(239,68,68,0.5);animation:pulse-red 1.9s infinite;`,
+            `M${eq.mag} ${eq.place || ''}`,
+            { type: 'seismic', title: `M${eq.mag?.toFixed?.(1) ?? eq.mag}`, detail: eq.place || 'Earthquake', level: (eq.mag || 0) >= 6 ? 'high' : (eq.mag || 0) >= 4 ? 'elevated' : 'monitor', source: 'USGS Earthquake Catalog', link: eq.url || 'https://earthquake.usgs.gov/earthquakes/map/' },
+            eq.lon, eq.lat
           );
         });
 
-        // Global event pulses (visualized near center for ambient awareness).
         payload.events.slice(0, 16).forEach((ev, i) => {
-          let target = null;
-          for (const k of GEO_KEYWORDS) {
-            if (k.re.test(ev.title || '')) {
-              target = { lat: k.lat, lon: k.lon, label: k.label };
-              break;
-            }
-          }
-          if (!target) {
-            const hub = CITY_HUBS[i % CITY_HUBS.length];
-            const ring = (i % 3) * 0.12;
-            target = {
-              lat: hub.lat + (i % 2 ? ring : -ring * 0.7),
-              lon: hub.lon + (i % 2 ? -ring * 0.8 : ring),
-              label: hub.label,
-            };
-          }
-          const data = {
-            type: 'event',
-            title: ev.country ? `[${ev.country}] ${target.label}` : target.label,
-            detail: ev.title,
-            level: 'global',
-            source: 'GDELT / News feed',
-            link: ev.url || 'https://www.gdeltproject.org/',
+          const kw = geoKeywordMatch(ev.title);
+          const hub = CITY_HUBS[i % CITY_HUBS.length];
+          const ring = (i % 3) * 0.12;
+          const target = kw || {
+            lat: hub.lat + (i % 2 ? ring : -ring * 0.7),
+            lon: hub.lon + (i % 2 ? -ring * 0.8 : ring),
+            label: hub.label,
           };
-          if (!hasSource(data)) return;
-          markersRef.current.push(
-            new maplibregl.Marker({
-              element: makePulse(
-                'width:9px;height:9px;border-radius:50%;background:#22D3EE;box-shadow:0 0 0 0 rgba(34,211,238,0.5);animation:pulse-cyan 2.2s infinite;',
-                `${target.label}: ${ev.title}`,
-                data
-              ),
-            })
-              .setLngLat([target.lon, target.lat])
-              .addTo(mapInstanceRef.current)
+          addMarker(
+            'width:9px;height:9px;border-radius:50%;background:#22D3EE;box-shadow:0 0 0 0 rgba(34,211,238,0.5);animation:pulse-cyan 2.2s infinite;',
+            `${target.label}: ${ev.title}`,
+            { type: 'event', title: ev.country ? `[${ev.country}] ${target.label}` : target.label, detail: ev.title, level: 'global', source: 'GDELT / News feed', link: ev.url || 'https://www.gdeltproject.org/' },
+            target.lon, target.lat
           );
         });
 
-        payload.markets.forEach((m, i) => {
-          const p = inferMarketPoint(m.question, i, center);
-          if (!p) return; // Only show markets with a confident geographic anchor.
+        payload.markets.forEach((m) => {
+          const p = geoKeywordMatch(m.question);
+          if (!p) return;
           const prob = typeof m.probability === 'number' ? m.probability : 0.5;
           const conf = Math.max(prob, 1 - prob);
           const size = conf > 0.9 ? 12 : conf > 0.75 ? 10 : 8;
-          const data = {
-            type: 'prediction',
-            title: `${Math.round(prob * 100)}% ${prob >= 0.5 ? 'YES' : 'NO'}`,
-            detail: m.question || 'Prediction market',
-            level: p.label,
-            source: 'Polymarket',
-            link: `https://polymarket.com/event/${m.eventSlug || m.slug}`,
-          };
-          if (!hasSource(data)) return;
-          markersRef.current.push(
-            new maplibregl.Marker({
-              element: makePulse(
-                `width:${size}px;height:${size}px;border-radius:50%;background:${prob >= 0.5 ? '#22C55E' : '#F43F5E'};box-shadow:0 0 0 0 rgba(34,197,94,0.4);animation:pulse-cyan 2.4s infinite;`,
-                `${Math.round(prob * 100)}% · ${m.question || 'market'}`,
-                data
-              ),
-            })
-              .setLngLat([p.lon, p.lat])
-              .addTo(mapInstanceRef.current)
+          addMarker(
+            `width:${size}px;height:${size}px;border-radius:50%;background:${prob >= 0.5 ? '#22C55E' : '#F43F5E'};box-shadow:0 0 0 0 rgba(34,197,94,0.4);animation:pulse-cyan 2.4s infinite;`,
+            `${Math.round(prob * 100)}% · ${m.question || 'market'}`,
+            { type: 'prediction', title: `${Math.round(prob * 100)}% ${prob >= 0.5 ? 'YES' : 'NO'}`, detail: m.question || 'Prediction market', level: p.label, source: 'Polymarket', link: `https://polymarket.com/event/${m.eventSlug || m.slug}` },
+            p.lon, p.lat
           );
         });
       } catch {
         // ignore map marker failures
       }
     })();
-  }, [center.lat, center.lon, userPosition.lat, userPosition.lon, payload]);
+  }, [center.lat, center.lon, userPosition.lat, userPosition.lon, payload, locLabel, geoState]);
 
   return (
     <>
@@ -575,107 +386,33 @@ export default function LiveMapBackdrop({ dark }) {
       `}</style>
       <div
         ref={mapRef}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: 'auto',
-          filter: dark ? 'saturate(1.12) brightness(0.9)' : 'saturate(1.1) brightness(0.95)',
-        }}
+        style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'auto', filter: dark ? 'saturate(1.12) brightness(0.9)' : 'saturate(1.1) brightness(0.95)' }}
       />
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: 'none',
-          background: dark
-            ? 'radial-gradient(circle at 50% 15%, rgba(2,6,23,0.06), rgba(2,6,23,0.28) 58%, rgba(2,6,23,0.42) 100%)'
-            : 'radial-gradient(circle at 50% 15%, rgba(255,255,255,0.06), rgba(255,255,255,0.26) 58%, rgba(244,247,252,0.42) 100%)',
-        }}
-      />
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: 'none',
-          background:
-            'linear-gradient(rgba(16,185,129,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,0.05) 1px, transparent 1px)',
-          backgroundSize: '52px 52px',
-          mixBlendMode: dark ? 'screen' : 'multiply',
-          opacity: 0.36,
-        }}
-      />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', background: dark ? 'radial-gradient(circle at 50% 15%, rgba(2,6,23,0.06), rgba(2,6,23,0.28) 58%, rgba(2,6,23,0.42) 100%)' : 'radial-gradient(circle at 50% 15%, rgba(255,255,255,0.06), rgba(255,255,255,0.26) 58%, rgba(244,247,252,0.42) 100%)' }} />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', background: 'linear-gradient(rgba(16,185,129,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,0.05) 1px, transparent 1px)', backgroundSize: '52px 52px', mixBlendMode: dark ? 'screen' : 'multiply', opacity: 0.36 }} />
       <button
         onClick={() => {
-          if (geoState !== 'granted') {
-            requestLocation();
-            return;
-          }
+          if (geoState !== 'granted') { requestLocation(); return; }
           mapInstanceRef.current?.flyTo({ center: [userPosition.lon, userPosition.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 900 });
         }}
         aria-label="Recenter to my location"
         title="Recenter to my location"
-        style={{
-          position: 'fixed',
-          right: 14,
-          bottom: 14,
-          zIndex: 2,
-          width: 34,
-          height: 34,
-          border: '1px solid rgba(255,255,255,0.24)',
-          borderRadius: 9999,
-          background: 'rgba(2,6,23,0.82)',
-          color: '#ff5a52',
-          font: '700 15px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-        }}
+        style={{ position: 'fixed', right: 14, bottom: 14, zIndex: 2, width: 34, height: 34, border: '1px solid rgba(255,255,255,0.24)', borderRadius: 9999, background: 'rgba(2,6,23,0.82)', color: '#ff5a52', font: '700 15px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
       >
         ⌖
       </button>
 
       {selected && (
-        <div
-          style={{
-            position: 'fixed',
-            right: 14,
-            bottom: 52,
-            zIndex: 3,
-            width: 320,
-            maxWidth: 'calc(100vw - 28px)',
-            border: '1px solid rgba(255,255,255,0.24)',
-            borderRadius: 12,
-            background: 'rgba(2,6,23,0.84)',
-            color: '#fff',
-            padding: '10px 12px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
-          }}
-        >
+        <div style={{ position: 'fixed', right: 14, bottom: 52, zIndex: 3, width: 320, maxWidth: 'calc(100vw - 28px)', border: '1px solid rgba(255,255,255,0.24)', borderRadius: 12, background: 'rgba(2,6,23,0.84)', color: '#fff', padding: '10px 12px', boxShadow: '0 8px 24px rgba(0,0,0,0.28)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <div style={{ font: '700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace' }}>{selected.title}</div>
-            <button
-              onClick={() => setSelected(null)}
-              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
-            >
-              x
-            </button>
+            <button onClick={() => setSelected(null)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>x</button>
           </div>
           <div style={{ marginTop: 4, color: '#cbd5e1', fontSize: 11, lineHeight: 1.45 }}>{selected.detail}</div>
           <div style={{ marginTop: 6, fontSize: 10, color: '#67e8f9', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{selected.level}</div>
-          <div style={{ marginTop: 6, fontSize: 10, color: '#93c5fd' }}>
-            Source: {selected.source || 'Unknown'}
-          </div>
+          <div style={{ marginTop: 6, fontSize: 10, color: '#93c5fd' }}>Source: {selected.source || 'Unknown'}</div>
           {selected.link && (
-            <a
-              href={selected.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: 'inline-block', marginTop: 8, color: '#60a5fa', fontSize: 11, textDecoration: 'underline' }}
-            >
+            <a href={selected.link} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 8, color: '#60a5fa', fontSize: 11, textDecoration: 'underline' }}>
               Open source →
             </a>
           )}

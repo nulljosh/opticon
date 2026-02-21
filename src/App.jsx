@@ -840,10 +840,8 @@ const reset = useCallback(() => {
     return `linear-gradient(rgba(48,209,88,${opacity.toFixed(3)}),rgba(48,209,88,${opacity.toFixed(3)})),${base}`;
   })();
 
-  // Hero number text contrast: shadow deepens in dark mode, lifts in light mode
-  const heroTextShadow = dark
-    ? `0 1px ${Math.round(2 + bgProgress * 8)}px rgba(0,0,0,${(0.2 + bgProgress * 0.25).toFixed(2)})`
-    : bgProgress > 0.15 ? `0 1px 4px rgba(255,255,255,0.6)` : 'none';
+  // Keep hero text shadow stable during live ticks to avoid perceived flashing.
+  const heroTextShadow = dark ? '0 2px 8px rgba(0,0,0,0.35)' : 'none';
 
   // P&L positive color: stays readable in light mode as bg greens out
   const pnlGreen = dark ? t.green : bgProgress > 0.2 ? '#0c6b27' : t.green;
@@ -864,7 +862,13 @@ const reset = useCallback(() => {
   };
 
   return (
-    <div style={{ minHeight: '100dvh', background: pnlBg, color: t.text, fontFamily: font, transition: 'background 1s ease' }}>
+    <div style={{
+      minHeight: '100dvh',
+      background: pnlBg,
+      color: t.text,
+      fontFamily: font,
+      transition: running ? 'none' : 'background 220ms ease',
+    }}>
       {/* Header */}
       <header style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -933,7 +937,19 @@ const reset = useCallback(() => {
             </>
           ) : (
             <>
-              <div style={{ fontSize: 'clamp(56px, 10vw, 112px)', fontWeight: 700, color: t.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-3px', lineHeight: 1, textShadow: heroTextShadow }}>
+              <div style={{
+                fontSize: 'clamp(56px, 10vw, 112px)',
+                fontWeight: 700,
+                color: t.text,
+                fontVariantNumeric: 'tabular-nums',
+                letterSpacing: '-3px',
+                lineHeight: 1,
+                textShadow: heroTextShadow,
+                minHeight: '1.1em',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
                 {formatNumber(equity)}
               </div>
               <div style={{ fontSize: 15, marginTop: 12 }}>

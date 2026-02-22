@@ -9,6 +9,12 @@ export const YAHOO_HEADERS = {
   'Pragma': 'no-cache',
 };
 
+export const FMP_BASE = 'https://financialmodelingprep.com/api/v3';
+
+export function getFmpApiKey() {
+  return process.env.FMP_API_KEY || '';
+}
+
 export function parseSymbols(raw, { max = 50, validate = false, tooManyMessage } = {}) {
   const symbolList = (raw || DEFAULT_SYMBOLS)
     .split(',')

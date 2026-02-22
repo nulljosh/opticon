@@ -1,56 +1,71 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 340">
   <style>
     text { font-family: -apple-system, system-ui, sans-serif; fill: #24292f; }
     .title { font-size: 16px; font-weight: 600; }
     .sub { font-size: 12px; fill: #57606a; }
     .box { fill: #ffffff; stroke: #d0d7de; stroke-width: 1.5; }
     .core { fill: #0969da; }
+    .fin { fill: #16a34a; }
     .text-white { fill: #ffffff; }
     .arrow { stroke: #57606a; stroke-width: 2; fill: none; }
   </style>
 
-  <rect width="800" height="300" fill="#ffffff"/>
+  <rect width="800" height="340" fill="#ffffff"/>
 
   <!-- Left: Data Sources -->
-  <rect x="30" y="40" width="160" height="50" rx="8" class="box"/>
-  <text x="110" y="62" text-anchor="middle" class="title">Polymarket API</text>
-  <text x="110" y="78" text-anchor="middle" class="sub">50 markets</text>
+  <rect x="30" y="30" width="160" height="50" rx="8" class="box"/>
+  <text x="110" y="52" text-anchor="middle" class="title">FMP API</text>
+  <text x="110" y="68" text-anchor="middle" class="sub">100 assets (primary)</text>
 
-  <rect x="30" y="110" width="160" height="50" rx="8" class="box"/>
-  <text x="110" y="132" text-anchor="middle" class="title">Yahoo Finance</text>
-  <text x="110" y="148" text-anchor="middle" class="sub">61 assets</text>
+  <rect x="30" y="95" width="160" height="50" rx="8" class="box"/>
+  <text x="110" y="117" text-anchor="middle" class="title">Yahoo Finance</text>
+  <text x="110" y="133" text-anchor="middle" class="sub">fallback provider</text>
 
-  <rect x="30" y="180" width="160" height="50" rx="8" class="box"/>
-  <text x="110" y="202" text-anchor="middle" class="title">Vercel Blob</text>
-  <text x="110" y="218" text-anchor="middle" class="sub">Cache layer</text>
+  <rect x="30" y="160" width="160" height="50" rx="8" class="box"/>
+  <text x="110" y="182" text-anchor="middle" class="title">Polymarket API</text>
+  <text x="110" y="198" text-anchor="middle" class="sub">50 markets</text>
+
+  <rect x="30" y="225" width="160" height="50" rx="8" class="box"/>
+  <text x="110" y="247" text-anchor="middle" class="title">Vercel Blob</text>
+  <text x="110" y="263" text-anchor="middle" class="sub">Cache layer</text>
 
   <!-- Center: Core -->
-  <rect x="230" y="90" width="240" height="120" rx="8" class="box core"/>
-  <text x="350" y="115" text-anchor="middle" class="title text-white">Rise Engine</text>
-  <text x="350" y="140" text-anchor="middle" class="sub text-white">Monte Carlo (5K paths)</text>
-  <text x="350" y="160" text-anchor="middle" class="sub text-white">Trading Algorithm</text>
-  <text x="350" y="180" text-anchor="middle" class="sub text-white">Risk Management</text>
-  <text x="350" y="200" text-anchor="middle" class="sub text-white">50ms Tick Rate</text>
+  <rect x="240" y="60" width="220" height="100" rx="8" class="box core"/>
+  <text x="350" y="85" text-anchor="middle" class="title text-white">Rise Engine</text>
+  <text x="350" y="105" text-anchor="middle" class="sub text-white">Trading Simulator</text>
+  <text x="350" y="120" text-anchor="middle" class="sub text-white">Risk Management</text>
+  <text x="350" y="140" text-anchor="middle" class="sub text-white">50ms Tick Rate</text>
+
+  <rect x="240" y="180" width="220" height="80" rx="8" class="box fin"/>
+  <text x="350" y="205" text-anchor="middle" class="title text-white">Finance Panel</text>
+  <text x="350" y="225" text-anchor="middle" class="sub text-white">Portfolio + Budget + Debt</text>
+  <text x="350" y="240" text-anchor="middle" class="sub text-white">JSON import/export</text>
 
   <!-- Right: Frontend -->
-  <rect x="510" y="50" width="160" height="50" rx="8" class="box"/>
-  <text x="590" y="72" text-anchor="middle" class="title">React Frontend</text>
-  <text x="590" y="88" text-anchor="middle" class="sub">233KB bundle</text>
+  <rect x="510" y="40" width="160" height="50" rx="8" class="box"/>
+  <text x="590" y="62" text-anchor="middle" class="title">React Frontend</text>
+  <text x="590" y="78" text-anchor="middle" class="sub">Vite + MapLibre</text>
 
-  <rect x="510" y="125" width="160" height="50" rx="8" class="box"/>
-  <text x="590" y="147" text-anchor="middle" class="title">Recharts</text>
-  <text x="590" y="163" text-anchor="middle" class="sub">Live updates</text>
+  <rect x="510" y="110" width="160" height="50" rx="8" class="box"/>
+  <text x="590" y="132" text-anchor="middle" class="title">Stock Ticker</text>
+  <text x="590" y="148" text-anchor="middle" class="sub">100 live assets</text>
 
-  <rect x="510" y="200" width="160" height="50" rx="8" class="box"/>
-  <text x="590" y="222" text-anchor="middle" class="title">Vercel CDN</text>
-  <text x="590" y="238" text-anchor="middle" class="sub">Edge deploy</text>
+  <rect x="510" y="180" width="160" height="50" rx="8" class="box"/>
+  <text x="590" y="202" text-anchor="middle" class="title">Situation Map</text>
+  <text x="590" y="218" text-anchor="middle" class="sub">Live overlays</text>
+
+  <rect x="510" y="250" width="160" height="50" rx="8" class="box"/>
+  <text x="590" y="272" text-anchor="middle" class="title">Vercel CDN</text>
+  <text x="590" y="288" text-anchor="middle" class="sub">Edge deploy</text>
 
   <!-- Arrows -->
-  <path d="M 190 65 L 250 120" class="arrow"/>
-  <path d="M 190 135 L 250 145" class="arrow"/>
-  <path d="M 190 205 L 250 180" class="arrow"/>
+  <path d="M 190 55 L 260 90" class="arrow"/>
+  <path d="M 190 120 L 260 115" class="arrow"/>
+  <path d="M 190 185 L 260 140" class="arrow"/>
+  <path d="M 190 250 L 260 230" class="arrow"/>
 
-  <path d="M 450 115 L 510 75" class="arrow"/>
-  <path d="M 450 150 L 510 150" class="arrow"/>
-  <path d="M 450 185 L 510 225" class="arrow"/>
+  <path d="M 440 90 L 510 65" class="arrow"/>
+  <path d="M 440 120 L 510 135" class="arrow"/>
+  <path d="M 440 210 L 510 205" class="arrow"/>
+  <path d="M 440 240 L 510 275" class="arrow"/>
 </svg>

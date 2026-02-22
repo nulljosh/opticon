@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const PROD_API = 'https://rise-production.vercel.app';
+
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.VERCEL ? '/' : (process.env.NODE_ENV === 'production' ? '/rise/' : '/'),
@@ -13,20 +15,36 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => '/markets?closed=false&limit=50&order=volume24hr&ascending=false'
       },
-      '/api/stocks': {
-        target: 'https://query2.finance.yahoo.com',
+      '/api/stocks-free': {
+        target: PROD_API,
         changeOrigin: true,
         secure: true,
-        rewrite: (path) => {
-          const symbols = new URLSearchParams(path.split('?')[1]).get('symbols') || 'AAPL,MSFT,GOOGL,AMZN,META,TSLA,NVDA';
-          return `/v7/finance/quote?symbols=${symbols}`;
-        },
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-          });
-        }
-      }
+      },
+      '/api/stocks': {
+        target: PROD_API,
+        changeOrigin: true,
+        secure: true,
+      },
+      '/api/commodities': {
+        target: PROD_API,
+        changeOrigin: true,
+        secure: true,
+      },
+      '/api/latest': {
+        target: PROD_API,
+        changeOrigin: true,
+        secure: true,
+      },
+      '/api/history': {
+        target: PROD_API,
+        changeOrigin: true,
+        secure: true,
+      },
+      '/api': {
+        target: PROD_API,
+        changeOrigin: true,
+        secure: true,
+      },
     }
   }
 })

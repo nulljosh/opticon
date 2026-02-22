@@ -10,6 +10,7 @@ import { tldr } from './utils/helpers';
 import { StatusBar, Card } from './components/ui';
 import Ticker from './components/Ticker';
 import PricingPage from './components/PricingPage';
+import FinancePanel from './components/FinancePanel';
 import LiveMapBackdrop from './components/LiveMapBackdrop';
 import { createBroker } from './utils/broker';
 import { useSubscription } from './hooks/useSubscription';
@@ -150,6 +151,7 @@ export default function App() {
   const t = getTheme(dark);
   const font = '-apple-system, BlinkMacSystemFont, system-ui, sans-serif';
   const [showPricing, setShowPricing] = useState(false);
+  const [showFinance, setShowFinance] = useState(false);
   const { isPro, isFree } = useSubscription();
 
   // Fibonacci levels from $1 to $10T
@@ -851,7 +853,7 @@ const reset = useCallback(() => {
       </div>
 
       {/* Header */}
-      <header style={{ position: 'relative', zIndex: 1, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}`, pointerEvents: mapFocus ? 'none' : 'auto' }}>
+      <header style={{ position: 'relative', zIndex: 1, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}`, pointerEvents: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <a href="https://heyitsmejosh.com" style={{ color: t.textSecondary, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>~</a>
           <span style={{ color: t.textTertiary, fontSize: 13 }}>/</span>
@@ -863,6 +865,12 @@ const reset = useCallback(() => {
           <span style={{ fontSize: 10, color: t.textTertiary, fontVariantNumeric: 'tabular-nums' }}>{formatLastUpdated(lastUpdated)}</span>
           {pmError && <span style={{ fontSize: 9, color: t.red }}>API error</span>}
           <span style={{ width: 1, height: 14, background: t.border }} />
+          <button
+            onClick={() => setShowFinance(true)}
+            style={{ background: t.glass, border: `1px solid ${t.border}`, borderRadius: 6, padding: '5px 10px', color: t.textSecondary, fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: font }}
+          >
+            PORTFOLIO
+          </button>
           {isFree && (
             <button
               onClick={() => setShowPricing(true)}
@@ -1008,6 +1016,9 @@ const reset = useCallback(() => {
 
       {/* Pricing Modal */}
       {showPricing && <PricingPage dark={dark} t={t} onClose={() => setShowPricing(false)} />}
+
+      {/* Finance Panel */}
+      {showFinance && <FinancePanel dark={dark} t={t} stocks={stocks} onClose={() => setShowFinance(false)} />}
 
       {/* Simulator toggle hidden until reimplementation */}
 

@@ -12,11 +12,24 @@ Use the Vercel production URL for runtime/API validation.
 Rise is a financial terminal app with:
 
 - High-speed simulator UI (`src/App.jsx`)
+- Personal finance panel (`src/components/FinancePanel.jsx`) -- portfolio, budget, debt, goals, spending
 - Prediction market feed and filters
 - Map-first backdrop + overlays (`src/components/LiveMapBackdrop.jsx`)
 - Tactical HUD styling pass (grid overlay + live status badge + neon map controls)
 - Single serverless API entry (`api/gateway.js`) with handlers under `server/api/`
+- Stock data: FMP batch quotes (primary) + Yahoo Finance (fallback)
 - Geolocation zoom policy: granted GPS uses neighborhood zoom; cached location uses near-neighborhood zoom; IP fallback stays wider.
+
+## Finance Panel (finn merge)
+
+- `src/components/FinancePanel.jsx` -- full-screen finance overlay
+- `src/hooks/usePortfolio.js` -- portfolio data hook, localStorage persistence
+- `src/utils/financeData.js` -- demo data + JSON schema validation
+- PORTFOLIO button in header opens the panel
+- Users can import/export JSON balance sheets
+- Demo data from finn/ loads by default
+- Live stock prices from useStocks merge into holdings for real-time valuation
+- `finn/scripts/` and `finn/cli/` kept as local CLI tooling
 
 ## Situation Monitor Data Sources
 
@@ -73,6 +86,13 @@ If Hobby deploys fail with function-count errors, ensure endpoint logic stays in
   - `VITE_STRIPE_PRICE_ID_STARTER`
   - `VITE_STRIPE_PRICE_ID_PRO`
 - Apple Pay is handled by Stripe Checkout on supported devices once domain verification is enabled in Stripe.
+
+## Stock Data API
+
+- FMP (Financial Modeling Prep) is the primary stock data source. Requires `FMP_API_KEY` env var.
+- Yahoo Finance chart API is the fallback when FMP is unavailable or quota exhausted.
+- 90s cache TTL to stay within FMP 250 req/day free tier.
+- `X-Rise-Data-Source` header shows which provider served the data (`fmp`/`yahoo`/`mixed`).
 
 ## Current Priorities
 

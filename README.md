@@ -1,8 +1,8 @@
 # Rise
 
-Fast financial terminal with live markets, prediction signals, and a paper-trading simulator.
+Fast financial terminal with live markets, prediction signals, personal finance dashboard, and a paper-trading simulator.
 
-**Live**: https://rise-production.vercel.app  
+**Live**: https://rise-production.vercel.app
 **Docs**: https://heyitsmejosh.com/rise/
 
 ![Project Map](map.svg)
@@ -11,31 +11,49 @@ Fast financial terminal with live markets, prediction signals, and a paper-tradi
 
 - React 19 + Vite
 - Vercel serverless API gateway (`api/gateway.js`) + handlers in `server/api/`
-- Polymarket + Yahoo Finance data
+- FMP (Financial Modeling Prep) primary + Yahoo Finance fallback
+- Polymarket prediction markets
+- Personal finance panel (portfolio, budget, debt tracker, spending trends)
 - Situation Monitor map (flights, traffic, construction incidents, seismic)
 - Global geopolitical event feed (GDELT panel)
 - Vitest + Playwright tests
+
+## Personal Finance
+
+The **Portfolio** panel (merged from finn/) provides:
+
+- Live-valued stock holdings with gain/loss tracking
+- Cash accounts and net worth calculation
+- Monthly budget breakdown (income, expenses, surplus)
+- Debt tracker with progress bars and payoff timeline
+- Goal tracking with priority levels
+- Spending trends chart with category breakdown
+- JSON import/export for custom balance sheets
+- Drag-and-drop file upload
+
+Demo data loads by default. Upload your own JSON to replace it.
 
 ## Map-First Mode
 
 - Full-page live map backdrop with pulsing event markers
 - Tactical HUD visual pass inspired by map-intel interfaces (grid + status badge + neon controls)
 - Fast default map startup at NYC, then geolocation recenter when available
-- Small-town zoom behavior: when device location is available, map auto-focuses at neighborhood-level detail (not metro-wide)
+- Small-town zoom behavior: when device location is available, map auto-focuses at neighborhood-level detail
 - User location drop-pin (`YOU`) + recenter control
 - Local overlays: traffic incidents + construction/barriers + seismic events
-- Prediction markets projected onto geographic anchors (city/team/politics keyword inference)
+- Prediction markets projected onto geographic anchors
 - Global feed pulses: geopolitical events
-- Viewport-based local refresh: panning to a new city refreshes local overlays for that city
+- Viewport-based local refresh: panning to a new city refreshes local overlays
 - Baseline fallback local markers keep map non-empty when upstream feeds are sparse
 
-Note:
-- Only predictions with a clear geographic anchor are plotted on the map.
-- Non-geographic markets are intentionally hidden from map rendering for now.
+## Data Sources
 
-Local dev fallback:
-- In dev, map/event calls can use `VITE_API_BASE_URL`
-- If unset, dev defaults to `https://rise-production.vercel.app` for JSON-safe API responses
+- **FMP** (primary): Batch stock quotes (100 symbols/call), commodities, indices. 250 req/day free tier.
+- **Yahoo Finance** (fallback): Chart API per-symbol, used when FMP quota exhausted or unavailable.
+- **Polymarket**: Prediction market odds and volumes.
+- **GDELT**: Global geopolitical events feed.
+- **USGS**: Real-time earthquake data.
+- **OSM**: Traffic incidents and construction barriers.
 
 ## Run
 
@@ -45,6 +63,12 @@ npm run dev
 ```
 
 Local URL: `http://localhost:5173`
+
+## Environment Variables
+
+- `FMP_API_KEY` - Financial Modeling Prep API key (free at financialmodelingprep.com)
+- `STRIPE_PRICE_ID_STARTER` / `STRIPE_PRICE_ID_PRO` - Stripe pricing
+- `VITE_STRIPE_PRICE_ID_STARTER` / `VITE_STRIPE_PRICE_ID_PRO` - Client-side Stripe
 
 ## Commands
 
@@ -56,17 +80,22 @@ npm run test:speed
 
 ## Reliability Notes
 
-- Stock fetch path now uses bounded timeout + retry/backoff and Yahoo provider fallback (`query1` -> `query2`).
-- Stocks and markets APIs keep a short in-memory warm cache and can serve stale cached data on transient upstream failures.
-- Stock/market handlers emit `X-Rise-Data-Status` (`live`/`cache`/`stale`) for runtime reliability visibility.
-- Frontend stock hook seeds from `/api/latest` cache, then refreshes live; UI now shows feed reliability state: `LIVE`, `FALLBACK`, or `STALE`.
+- Stock API uses FMP batch quotes as primary source (single call for 100 symbols).
+- Falls back to Yahoo Finance chart API per-symbol when FMP is unavailable.
+- 90s cache TTL during market hours to stay within FMP free tier limits.
+- Stocks and markets APIs keep a short in-memory warm cache and serve stale data on transient failures.
+- Stock/market handlers emit `X-Rise-Data-Status` (`live`/`cache`/`stale`) and `X-Rise-Data-Source` (`fmp`/`yahoo`/`mixed`).
+- Frontend stock hook seeds from `/api/latest` cache, then refreshes live; UI shows `LIVE`, `FALLBACK`, or `STALE`.
 
 ## Layout
 
 - `src/` app UI, hooks, utils
+- `src/components/FinancePanel.jsx` personal finance dashboard
+- `src/hooks/usePortfolio.js` portfolio data + localStorage persistence
+- `src/utils/financeData.js` demo data + schema validation
 - `api/gateway.js` single serverless entry
 - `server/api/` handler modules
-- `tests/` API and integration tests
+- `finn/scripts/` + `finn/cli/` local finance tooling (kept for CLI use)
 
 ## Deploy
 
@@ -75,34 +104,10 @@ npm run test:speed
 
 ## Pricing
 
-- `Free`: core dashboard + simulator
+- `Free`: core dashboard + simulator + finance panel
 - `Starter`: `$20/mo`
 - `Pro`: `$50/mo`
-
-Stripe price IDs expected by UI/API:
-
-- `VITE_STRIPE_PRICE_ID_STARTER`
-- `VITE_STRIPE_PRICE_ID_PRO`
-- `STRIPE_PRICE_ID_STARTER`
-- `STRIPE_PRICE_ID_PRO`
-
-Apple Pay note: Stripe Checkout can surface Apple Pay automatically on supported Apple devices after Stripe domain verification is configured.
 
 ## License
 
 MIT. Not financial advice.
-
-## Name Ideas
-
-- Sentinel
-- Aegis
-- Citadel
-- Bastion
-- Atlas
-- Beacon
-- Vigil
-- Nexus
-- Overwatch
-- Horizon
-- Signal
-- Gridlock

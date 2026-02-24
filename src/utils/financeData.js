@@ -2,18 +2,19 @@
 // Serves as placeholder until user uploads their own balance sheet
 
 export const DEMO_HOLDINGS = [
-  { symbol: 'AAPL', shares: 0.08, costBasis: 178.50, currency: 'USD' },
-  { symbol: 'AVGO', shares: 0.015, costBasis: 165.00, currency: 'USD' },
-  { symbol: 'HOOD', shares: 0.12, costBasis: 42.30, currency: 'USD' },
-  { symbol: 'IBM', shares: 0.04, costBasis: 220.00, currency: 'USD' },
-  { symbol: 'ORCL', shares: 0.06, costBasis: 140.00, currency: 'USD' },
-  { symbol: 'PLTR', shares: 0.08, costBasis: 72.00, currency: 'USD' },
-  { symbol: 'SLV', shares: 0.15, costBasis: 22.00, currency: 'USD' },
+  { symbol: 'AAPL', shares: 0.0115, costBasis: 259.13, currency: 'USD' },
+  { symbol: 'AVGO', shares: 0.0091, costBasis: 328.57, currency: 'USD' },
+  { symbol: 'HOOD', shares: 0.0384, costBasis: 78.13, currency: 'USD' },
+  { symbol: 'IBM', shares: 0.0102, costBasis: 292.16, currency: 'USD' },
+  { symbol: 'ORCL', shares: 0.0194, costBasis: 153.61, currency: 'USD' },
+  { symbol: 'PLTR', shares: 0.0215, costBasis: 139.07, currency: 'USD' },
+  { symbol: 'SLV', shares: 0.045, costBasis: 66.67, currency: 'USD' },
+  { symbol: 'SNDK', shares: 0.0065, costBasis: 606.15, currency: 'USD' },
 ];
 
 export const DEMO_ACCOUNTS = [
-  { name: 'Vacation', type: 'chequing', balance: 23.19, currency: 'CAD' },
-  { name: 'TFSA', type: 'investment', balance: 100.56, currency: 'CAD' },
+  { name: 'Vacation', type: 'chequing', balance: 21.88, currency: 'CAD' },
+  { name: 'TFSA', type: 'investment', balance: 35.88, currency: 'CAD' },
   { name: 'Starbucks Card', type: 'gift', balance: 9.74, currency: 'CAD' },
 ];
 

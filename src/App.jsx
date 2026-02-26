@@ -1084,12 +1084,6 @@ const reset = useCallback(() => {
 
       {/* Simulator toggle hidden until reimplementation */}
 
-      <footer style={{ position: 'fixed', left: 0, right: 0, bottom: 8, zIndex: 2, textAlign: 'center', fontSize: 10, color: t.textTertiary, pointerEvents: 'auto' }}>
-        &copy; 2026 &middot;{' '}
-        <a href="https://heyitsmejosh.com" target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'none' }}>
-          Portfolio
-        </a>
-      </footer>
 
       {/* Market tooltip */}
       {(hoveredMarket || tappedMarket) && (() => {
@@ -1140,6 +1134,7 @@ const reset = useCallback(() => {
       {/* Footer */}
       <footer style={{ position: 'relative', zIndex: 1, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textTertiary, pointerEvents: 'auto' }}>
         <span>MIT License</span>
+        <span>&copy; 2026 &middot;{' '}<a href="https://heyitsmejosh.com" target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'none', transition: 'color 0.15s' }} onMouseEnter={e => e.target.style.color = t.text} onMouseLeave={e => e.target.style.color = t.textSecondary}>Portfolio</a></span>
         <a href="https://github.com/nulljosh/rise" target="_blank" rel="noopener noreferrer" style={{ color: t.textTertiary, textDecoration: 'none', transition: 'color 0.15s' }} onMouseEnter={e => e.target.style.color = t.text} onMouseLeave={e => e.target.style.color = t.textTertiary}>GitHub</a>
       </footer>
     </div>

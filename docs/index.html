@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rise - Financial Terminal</title>
+    <title>Opticon - Financial Terminal</title>
     <style>
         * {
             margin: 0;
@@ -67,7 +67,7 @@
             position: relative;
         }
         li:before {
-            content: "→";
+            content: "\2192";
             position: absolute;
             left: 0;
             color: #0071e3;
@@ -114,67 +114,104 @@
             color: #6e6e73;
             margin-top: 0.25rem;
         }
+        .section-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #6e6e73;
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Rise</h1>
-        <p class="subtitle">Low-latency financial terminal with prediction markets and quantitative analysis</p>
+        <h1>Opticon</h1>
+        <p class="subtitle">Financial terminal with live markets, situation monitor, personal finance, and a paper-trading simulator</p>
 
-        <a href="https://rise-production.vercel.app" class="cta">Launch App</a>
+        <a href="https://opticon.heyitsmejosh.com" class="cta">Launch App</a>
 
         <div class="stats">
             <div class="stat">
-                <div class="stat-value">233KB</div>
-                <div class="stat-label">Bundle Size</div>
+                <div class="stat-value">100</div>
+                <div class="stat-label">Live Assets</div>
             </div>
             <div class="stat">
-                <div class="stat-value">&lt;10MB</div>
-                <div class="stat-label">Memory</div>
+                <div class="stat-value">30s</div>
+                <div class="stat-label">Refresh Rate</div>
             </div>
             <div class="stat">
-                <div class="stat-value">50ms</div>
-                <div class="stat-label">Tick Rate</div>
+                <div class="stat-value">8</div>
+                <div class="stat-label">Data Feeds</div>
             </div>
             <div class="stat">
-                <div class="stat-value">61</div>
-                <div class="stat-label">Assets</div>
+                <div class="stat-value">20+</div>
+                <div class="stat-label">API Routes</div>
             </div>
         </div>
 
-        <h2>Features</h2>
+        <h2>Situation Monitor</h2>
         <ul>
-            <li>Trading Simulator: $1 → $1B in &lt;60s with autonomous algorithm</li>
-            <li>Prediction Markets: Real-time Polymarket feeds with probability filters</li>
-            <li>Monte Carlo: 5K-path simulations with bull/base/bear scenarios</li>
-            <li>Live Data: Yahoo Finance stocks, commodities, crypto via CoinGecko</li>
-            <li>Vercel Blob Cache: Daily updates at 8 AM UTC for instant load</li>
+            <li>Full-page live map with tactical HUD overlay</li>
+            <li>Traffic incidents and construction barriers (OSM)</li>
+            <li>Real-time earthquake markers (USGS)</li>
+            <li>Crime data feeds with local overlays</li>
+            <li>Local events: concerts, sports, community (PredictHQ)</li>
+            <li>Global geopolitical events (GDELT)</li>
+            <li>Viewport-based refresh: pan to a new city, overlays update</li>
+        </ul>
+
+        <h2>Markets</h2>
+        <ul>
+            <li>Scrolling ticker: Mag 7, 100 US stocks, commodities, ETFs</li>
+            <li>FMP batch quotes (primary) + Yahoo Finance (fallback)</li>
+            <li>Prediction markets: Polymarket feed with geo-anchored map pins</li>
+            <li>Paper-trading simulator: $1 to $1T with Fibonacci checkpoints</li>
+        </ul>
+
+        <h2>Personal Finance</h2>
+        <ul>
+            <li>Portfolio panel: live-valued holdings, accounts, net worth</li>
+            <li>Budget tracker: income, expenses, surplus</li>
+            <li>Debt tracker with payoff timeline</li>
+            <li>Spending trends with category breakdown</li>
+            <li>Server-side persistence via <code>/api/portfolio</code> (Vercel KV)</li>
+            <li>CLI access: <code>balance</code> command for terminal summary</li>
+        </ul>
+
+        <h2>API</h2>
+        <ul>
+            <li><code>/api/stocks-free</code> -- batch stock quotes (FMP/Yahoo)</li>
+            <li><code>/api/portfolio</code> -- portfolio CRUD (get, update, summary)</li>
+            <li><code>/api/auth</code> -- register, login, logout, verify-email</li>
+            <li><code>/api/traffic</code> -- traffic incidents</li>
+            <li><code>/api/earthquakes</code> -- USGS seismic feed</li>
+            <li><code>/api/events</code> -- GDELT geopolitical events</li>
+            <li><code>/api/crime</code> -- crime data</li>
+            <li><code>/api/weather</code> -- weather + alerts</li>
+            <li><code>/api/flights</code> -- flight tracking</li>
         </ul>
 
         <h2>Quick Start</h2>
-        <pre><code>git clone https://github.com/nulljosh/rise.git
-cd rise
+        <pre><code>git clone https://github.com/nulljosh/opticon.git
+cd opticon
 npm install
 npm run dev</code></pre>
 
-        <h2>Tech Stack</h2>
+        <h2>Stack</h2>
         <ul>
             <li>React 19 + Vite</li>
-            <li>Recharts for visualization</li>
-            <li>Polymarket + Yahoo Finance APIs</li>
-            <li>Custom Monte Carlo engine</li>
-            <li>Vercel deployment with Blob storage</li>
+            <li>MapLibre GL + CartoCDN tiles</li>
+            <li>Vercel serverless (single gateway function)</li>
+            <li>Vercel KV (Upstash Redis) for auth + portfolio</li>
+            <li>FMP + Yahoo Finance + Polymarket + GDELT + USGS + OSM</li>
+            <li>Vitest + Playwright</li>
         </ul>
-
-        <h2>Philosophy</h2>
-        <p><strong>The 10MB Dashboard</strong> - Every feature must justify its bytes. Speed is sacred, latency kills alpha.</p>
 
         <h2>Links</h2>
         <ul>
-            <li><a href="https://rise-production.vercel.app">Live App</a></li>
-            <li><a href="https://github.com/nulljosh/rise">GitHub</a></li>
-            <li><a href="https://github.com/nulljosh/rise/issues">Issues</a></li>
-            <li><a href="https://github.com/nulljosh/rise/discussions">Discussions</a></li>
+            <li><a href="https://opticon.heyitsmejosh.com">Live App</a></li>
+            <li><a href="https://github.com/nulljosh/opticon">GitHub</a></li>
         </ul>
     </div>
 </body>

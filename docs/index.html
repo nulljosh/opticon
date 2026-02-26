@@ -127,7 +127,7 @@
 <body>
     <div class="container">
         <h1>Opticon</h1>
-        <p class="subtitle">Financial terminal with live markets, situation monitor, personal finance, and a paper-trading simulator</p>
+        <p class="subtitle">Map-first situation monitor with scrolling stock tickers, personal finance dashboard, and integrated data feeds</p>
 
         <a href="https://opticon.heyitsmejosh.com" class="cta">Launch App</a>
 
@@ -150,23 +150,25 @@
             </div>
         </div>
 
-        <h2>Situation Monitor</h2>
+        <h2>Live Map</h2>
         <ul>
-            <li>Full-page live map with tactical HUD overlay</li>
+            <li>Full-page MapLibre GL backdrop with tactical HUD overlay</li>
             <li>Traffic incidents and construction barriers (OSM)</li>
             <li>Real-time earthquake markers (USGS)</li>
             <li>Crime data feeds with local overlays</li>
             <li>Local events: concerts, sports, community (PredictHQ)</li>
             <li>Global geopolitical events (GDELT)</li>
-            <li>Viewport-based refresh: pan to a new city, overlays update</li>
+            <li>Prediction markets geo-anchored as map pins (Polymarket)</li>
+            <li>Weather alerts overlay</li>
+            <li>Flight tracking</li>
+            <li>GPS user pin with viewport-based refresh</li>
         </ul>
 
-        <h2>Markets</h2>
+        <h2>Stock Tickers</h2>
         <ul>
-            <li>Scrolling ticker: Mag 7, 100 US stocks, commodities, ETFs</li>
-            <li>FMP batch quotes (primary) + Yahoo Finance (fallback)</li>
-            <li>Prediction markets: Polymarket feed with geo-anchored map pins</li>
-            <li>Paper-trading simulator: $1 to $1T with Fibonacci checkpoints</li>
+            <li>Scrolling horizontal ticker: Mag 7 + 100 US stocks, commodities, ETFs</li>
+            <li>FMP batch quotes (primary) + Yahoo Finance fallback, 30s refresh</li>
+            <li>Click any ticker to open Yahoo Finance detail</li>
         </ul>
 
         <h2>Personal Finance</h2>
@@ -177,6 +179,13 @@
             <li>Spending trends with category breakdown</li>
             <li>Server-side persistence via <code>/api/portfolio</code> (Vercel KV)</li>
             <li>CLI access: <code>balance</code> command for terminal summary</li>
+        </ul>
+
+        <h2>Coming Soon</h2>
+        <ul>
+            <li>Live markets panel with per-stock charts and detail views</li>
+            <li>Trading simulator UI (coded, not yet visible)</li>
+            <li>Custom watchlist with autocomplete ticker search</li>
         </ul>
 
         <h2>API</h2>

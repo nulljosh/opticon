@@ -888,6 +888,8 @@ const reset = useCallback(() => {
   return (
     <div style={{
       minHeight: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
       background: pnlBg,
       color: t.text,
       fontFamily: font,
@@ -956,7 +958,7 @@ const reset = useCallback(() => {
         </div>
       </header>
 
-      <div style={{ position: 'relative', zIndex: 1, padding: 16, maxWidth: 1400, margin: '0 auto', pointerEvents: mapFocus ? 'none' : 'auto', opacity: mapFocus ? 0.58 : 1, transition: 'opacity 180ms ease' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: 16, maxWidth: 1400, margin: '0 auto', flex: 1, pointerEvents: mapFocus ? 'none' : 'auto', opacity: mapFocus ? 0.58 : 1, transition: 'opacity 180ms ease' }}>
 
         {/* HERO */}
         {!hideSimulator && (

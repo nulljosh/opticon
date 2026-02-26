@@ -1,9 +1,29 @@
 import { put } from '@vercel/blob';
+import { YAHOO_HEADERS, FMP_BASE, getFmpApiKey } from './stocks-shared.js';
 
 const BLOB_FILENAME = 'rise-cache/results.json';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000; // ms
+
+// Full symbol list matching useStocks.js DEFAULT_SYMBOLS
+const ALL_SYMBOLS = [
+  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA',
+  'BRK-B', 'LLY', 'V', 'UNH', 'XOM', 'JPM', 'WMT', 'JNJ', 'MA', 'PG',
+  'AVGO', 'HD', 'CVX', 'MRK', 'COST', 'ABBV', 'KO', 'PEP', 'AMD', 'ADBE',
+  'CRM', 'NFLX', 'CSCO', 'TMO', 'ORCL', 'ACN', 'INTC', 'NKE', 'TXN',
+  'QCOM', 'PM', 'DHR', 'INTU', 'UNP', 'RTX', 'HON', 'SPGI',
+  'BAC', 'GS', 'MS', 'C', 'WFC', 'BLK', 'SCHW', 'AXP',
+  'PFE', 'AMGN', 'BMY', 'MDT', 'BSX', 'ELV', 'CVS',
+  'UPS', 'FDX', 'BA', 'CAT', 'DE', 'LMT', 'GE',
+  'DIS', 'CMCSA', 'VZ', 'T', 'TMUS',
+  'NEE', 'DUK', 'SO',
+  'TGT', 'LOW', 'SBUX', 'MCD', 'YUM', 'F', 'GM',
+  'AMT', 'PLD', 'CME', 'WM', 'XYZ',
+  'COIN', 'PLTR', 'HOOD', 'HIMS', 'SHOP', 'RKLB', 'SOFI', 'IBM', 'IWM',
+  'GC=F', 'SI=F', 'CL=F',
+  'SPY', 'SJIM', 'LJIM',
+];
 
 /**
  * Fetch with timeout and automatic retry logic
@@ -42,31 +62,80 @@ async function fetchMarkets() {
   }
 }
 
+async function fetchYahooSymbol(symbol) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+  try {
+    const res = await timedFetch(url, { headers: YAHOO_HEADERS }, 8000);
+    if (!res.ok) return null;
+    const meta = (await res.json()).chart?.result?.[0]?.meta;
+    if (!meta?.regularMarketPrice || typeof meta.regularMarketPrice !== 'number') return null;
+    const prev = meta.chartPreviousClose || meta.previousClose;
+    return {
+      symbol,
+      price: meta.regularMarketPrice,
+      change: prev ? meta.regularMarketPrice - prev : 0,
+      changePercent: prev ? ((meta.regularMarketPrice - prev) / prev) * 100 : 0,
+      volume: meta.regularMarketVolume ?? 0,
+    };
+  } catch { return null; }
+}
+
+async function chunkedFetch(items, fetchFn, batchSize = 10, delayMs = 100) {
+  const results = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fetchFn));
+    results.push(...batchResults);
+    if (i + batchSize < items.length) {
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  return results;
+}
+
 async function fetchStocks() {
   const startTime = Date.now();
-  const syms = 'AAPL,MSFT,GOOGL,AMZN,META,TSLA,NVDA,CRM,PLTR,HOOD,COST,JPM,WMT,TGT,PG,HIMS,COIN,SQ,SHOP,RKLB,SOFI,T,IBM,DIS,IWM,GC=F,SI=F,CL=F';
-  try {
-    const res = await timedFetch(
-      `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${syms}`,
-      { headers: { 'User-Agent': UA, Accept: 'application/json' } }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const result = (data.quoteResponse?.result || [])
-      .filter(q => q?.symbol && q?.regularMarketPrice !== undefined)
-      .map(q => ({
-        symbol: q.symbol,
-        price: q.regularMarketPrice,
-        change: q.regularMarketChange ?? 0,
-        changePercent: q.regularMarketChangePercent ?? 0,
-        volume: q.regularMarketVolume ?? 0,
-      }));
-    console.log(`[CRON] Stocks fetched: ${result.length}/${(data.quoteResponse?.result || []).length} in ${Date.now() - startTime}ms`);
-    return result;
-  } catch (e) { 
-    console.error(`[CRON] Stocks fetch failed after ${Date.now() - startTime}ms:`, e.message); 
-    return []; 
+  const results = [];
+
+  // Try FMP batch first (single API call for all symbols)
+  const apiKey = getFmpApiKey();
+  if (apiKey) {
+    try {
+      const fmpSymbols = ALL_SYMBOLS.map(s => s.replace('-', '.'));
+      const url = `${FMP_BASE}/quote/${fmpSymbols.join(',')}?apikey=${apiKey}`;
+      const res = await timedFetch(url, {}, 15000);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const yahooMap = {};
+          ALL_SYMBOLS.forEach(s => { yahooMap[s.replace('-', '.')] = s; });
+          data.filter(q => q.symbol && typeof q.price === 'number').forEach(q => {
+            results.push({
+              symbol: yahooMap[q.symbol] || q.symbol,
+              price: q.price,
+              change: q.change ?? 0,
+              changePercent: q.changesPercentage ?? 0,
+              volume: q.volume ?? 0,
+            });
+          });
+        }
+      }
+    } catch (e) {
+      console.warn(`[CRON] FMP batch failed: ${e.message}`);
+    }
   }
+
+  // Yahoo chunked fallback for any symbols FMP missed
+  const have = new Set(results.map(r => r.symbol));
+  const missing = ALL_SYMBOLS.filter(s => !have.has(s));
+  if (missing.length > 0) {
+    console.log(`[CRON] FMP returned ${results.length}/${ALL_SYMBOLS.length}, fetching ${missing.length} from Yahoo`);
+    const yahooResults = await chunkedFetch(missing, fetchYahooSymbol, 10, 100);
+    yahooResults.filter(Boolean).forEach(r => results.push(r));
+  }
+
+  console.log(`[CRON] Stocks fetched: ${results.length}/${ALL_SYMBOLS.length} in ${Date.now() - startTime}ms`);
+  return results;
 }
 
 async function fetchCommodities() {

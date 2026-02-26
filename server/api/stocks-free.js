@@ -16,6 +16,17 @@ const cache = new Map();
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+async function chunkedFetch(items, fetchFn, batchSize = 10, delayMs = 100) {
+  const results = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fetchFn));
+    results.push(...batchResults);
+    if (i + batchSize < items.length) await sleep(delayMs);
+  }
+  return results;
+}
+
 function getCached(cacheKey, maxAgeMs) {
   if (!ENABLE_CACHE) return null;
   const cached = cache.get(cacheKey);
@@ -158,7 +169,7 @@ export default async function handler(req, res) {
       if (stocks) stocks.forEach(s => { fmpMap[s.symbol] = s; });
 
       const missing = symbolList.filter(s => !fmpMap[s]);
-      const yahooResults = await Promise.all(missing.map(fetchYahooSymbol));
+      const yahooResults = await chunkedFetch(missing, fetchYahooSymbol, 10, 100);
       const yahooStocks = yahooResults.filter(r => r !== null);
 
       stocks = [...Object.values(fmpMap), ...yahooStocks];

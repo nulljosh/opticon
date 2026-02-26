@@ -14,7 +14,7 @@ const TRAFFIC_REFRESH   = 60_000;
 const SITUATION_REFRESH = 5 * 60_000;
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? 'https://rise-production.vercel.app' : '');
+  (import.meta.env.DEV ? 'https://opticon-production.vercel.app' : '');
 
 function apiPath(path) {
   return `${API_BASE}${path}`;
@@ -55,6 +55,8 @@ export function useSituation() {
   const [earthquakes, setEarthquakes] = useState([]);
   const [events, setEvents] = useState([]);
   const [weatherAlerts, setWeatherAlerts] = useState([]);
+  const [crimeIncidents, setCrimeIncidents] = useState([]);
+  const [localEvents, setLocalEvents] = useState([]);
 
   const activeCenter = selectedCity
     ? { lat: selectedCity.lat, lon: selectedCity.lon, label: selectedCity.label }
@@ -131,6 +133,20 @@ export function useSituation() {
     } catch { /* non-critical */ }
   }, [activeCenter.lat, activeCenter.lon]);
 
+  const fetchCrime = useCallback(async () => {
+    try {
+      const data = await fetchWithTimeout(apiPath(`/api/crime?lat=${activeCenter.lat}&lon=${activeCenter.lon}`));
+      setCrimeIncidents(data.incidents ?? []);
+    } catch { /* non-critical */ }
+  }, [activeCenter.lat, activeCenter.lon]);
+
+  const fetchLocalEvents = useCallback(async () => {
+    try {
+      const data = await fetchWithTimeout(apiPath(`/api/local-events?lat=${activeCenter.lat}&lon=${activeCenter.lon}`));
+      setLocalEvents(data.events ?? []);
+    } catch { /* non-critical */ }
+  }, [activeCenter.lat, activeCenter.lon]);
+
   useEffect(() => {
     fetchFlights();
     fetchTraffic();
@@ -145,14 +161,18 @@ export function useSituation() {
     fetchEarthquakes();
     fetchEvents();
     fetchWeatherAlerts();
+    fetchCrime();
+    fetchLocalEvents();
     const si = setInterval(() => {
       fetchIncidents();
       fetchEarthquakes();
       fetchEvents();
       fetchWeatherAlerts();
+      fetchCrime();
+      fetchLocalEvents();
     }, SITUATION_REFRESH);
     return () => clearInterval(si);
-  }, [fetchIncidents, fetchEarthquakes, fetchEvents, fetchWeatherAlerts]);
+  }, [fetchIncidents, fetchEarthquakes, fetchEvents, fetchWeatherAlerts, fetchCrime, fetchLocalEvents]);
 
   return {
     userLocation, locationError,
@@ -161,7 +181,7 @@ export function useSituation() {
     worldCities: WORLD_CITIES,
     flights, flightsLoading, flightsError,
     traffic, trafficLoading, trafficError,
-    incidents, earthquakes, events, weatherAlerts,
+    incidents, earthquakes, events, weatherAlerts, crimeIncidents, localEvents,
     refetchFlights: fetchFlights,
     refetchTraffic: fetchTraffic,
   };

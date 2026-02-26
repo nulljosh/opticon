@@ -14,6 +14,10 @@ import FinancePanel from './components/FinancePanel';
 import LiveMapBackdrop from './components/LiveMapBackdrop';
 import { createBroker } from './utils/broker';
 import { useSubscription } from './hooks/useSubscription';
+import { useAuth } from './hooks/useAuth';
+import { useWatchlist } from './hooks/useWatchlist';
+import LoginPage from './components/LoginPage';
+import RegisterPage from './components/RegisterPage';
 
 // Trading Simulator Assets (US50 + Indices + Crypto)
 // Fallback prices - live prices auto-loaded from Yahoo Finance via useStocks
@@ -145,6 +149,9 @@ const categoryKeywords = {
 
 
 export default function App() {
+  const { user, loading: authLoading, error: authError, isAuthenticated, login, register, logout } = useAuth();
+  const [authView, setAuthView] = useState('login'); // 'login' | 'register'
+
   const [dark, setDark] = useState(true);
   const [hideSimulator, setHideSimulator] = useState(true);
   const mapFocus = hideSimulator;
@@ -153,6 +160,7 @@ export default function App() {
   const [showPricing, setShowPricing] = useState(false);
   const [showFinance, setShowFinance] = useState(false);
   const { isPro, isFree } = useSubscription();
+  const { watchlist, addSymbol, removeSymbol, toggleSymbol } = useWatchlist(user);
 
   // Fibonacci levels from $1 to $10T
   const FIB_LEVELS = [
@@ -192,13 +200,13 @@ export default function App() {
   // Broker state
   const DEFAULT_BROKER_CONFIG = { broker: 'ctrader', clientId: '', clientSecret: '', refreshToken: '', accountId: '', webhookUrl: '', accessToken: '' };
   const [brokerConfig, setBrokerConfig] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('rise_broker_config')) || DEFAULT_BROKER_CONFIG; }
+    try { return JSON.parse(localStorage.getItem('opticon_broker_config')) || DEFAULT_BROKER_CONFIG; }
     catch { return DEFAULT_BROKER_CONFIG; }
   });
   const [brokerConnected, setBrokerConnected] = useState(false);
   const [signalLog, setSignalLog] = useState([]);
   const [autoSend, setAutoSend] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('rise_broker_autosend')) || false; }
+    try { return JSON.parse(localStorage.getItem('opticon_broker_autosend')) || false; }
     catch { return false; }
   });
   const brokerRef = useRef(null);
@@ -769,13 +777,21 @@ const reset = useCallback(() => {
       return [];
     }
 
-    return Object.values(stocks).map(stock => ({
-      key: stock.symbol,
-      name: stock.symbol,
-      price: stock.price,
-      change: stock.changePercent || 0,
-    }));
-  }, [stocks]);
+    // Filter by watchlist if set, otherwise show all
+    const symbols = watchlist && watchlist.length > 0
+      ? watchlist.filter(s => stocks[s])
+      : Object.keys(stocks);
+
+    return symbols.map(sym => {
+      const stock = stocks[sym];
+      return {
+        key: stock.symbol,
+        name: stock.symbol,
+        price: stock.price,
+        change: stock.changePercent || 0,
+      };
+    });
+  }, [stocks, watchlist]);
 
   const filteredMarkets = useMemo(() => {
     let filtered = markets;
@@ -838,6 +854,36 @@ const reset = useCallback(() => {
 
   // P&L positive color: stays readable in light mode as bg greens out
   const pnlGreen = dark ? t.green : bgProgress > 0.2 ? '#0c6b27' : t.green;
+
+  // Auth gate
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#888', fontSize: 14, fontFamily: font }}>Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    if (authView === 'register') {
+      return (
+        <RegisterPage
+          onRegister={register}
+          onSwitchToLogin={() => setAuthView('login')}
+          error={authError}
+        />
+      );
+    }
+    return (
+      <LoginPage
+        onLogin={login}
+        onSwitchToRegister={() => setAuthView('register')}
+        error={authError}
+        theme={t}
+      />
+    );
+  }
+
   return (
     <div style={{
       minHeight: '100dvh',
@@ -857,7 +903,7 @@ const reset = useCallback(() => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <a href="https://heyitsmejosh.com" style={{ color: t.textSecondary, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>~</a>
           <span style={{ color: t.textTertiary, fontSize: 13 }}>/</span>
-          <span style={{ color: t.text, fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>rise</span>
+          <span style={{ color: t.text, fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>opticon</span>
           <span style={{ width: 1, height: 14, background: t.border, marginLeft: 8 }} />
           <StatusBar t={t} reliability={stocksReliability} />
         </div>
@@ -891,6 +937,12 @@ const reset = useCallback(() => {
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
               )}
             </svg>
+          </button>
+          <button
+            onClick={logout}
+            style={{ background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 6, padding: '5px 8px', color: t.textTertiary, fontSize: 9, fontWeight: 500, cursor: 'pointer', fontFamily: font }}
+          >
+            OUT
           </button>
         </div>
       </header>
@@ -1074,6 +1126,12 @@ const reset = useCallback(() => {
           </div>
         );
       })()}
+
+      {/* Footer */}
+      <footer style={{ position: 'relative', zIndex: 1, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textTertiary, pointerEvents: 'auto' }}>
+        <span>MIT License</span>
+        <a href="https://github.com/nulljosh/rise" target="_blank" rel="noopener noreferrer" style={{ color: t.textTertiary, textDecoration: 'none', transition: 'color 0.15s' }} onMouseEnter={e => e.target.style.color = t.text} onMouseLeave={e => e.target.style.color = t.textTertiary}>GitHub</a>
+      </footer>
     </div>
   );
 }

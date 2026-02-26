@@ -4,7 +4,7 @@ import {
   DEMO_GOALS, DEMO_SPENDING, DEMO_GIVING, validatePortfolioData,
 } from '../utils/financeData';
 
-const STORAGE_KEY = 'rise_portfolio';
+const STORAGE_KEY = 'opticon_portfolio';
 
 function loadFromStorage() {
   try {

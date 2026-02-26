@@ -6,6 +6,7 @@ export function useSubscription() {
 
   useEffect(() => {
     // Check localStorage for customer ID (saved after checkout)
+    // Also check auth user record for stripe_customer_id
     const customerId = localStorage.getItem('stripe_customer_id');
 
     if (!customerId) {

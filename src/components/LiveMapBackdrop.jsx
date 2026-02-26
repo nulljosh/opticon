@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const DEFAULT_CENTER = { lat: 40.7128, lon: -74.0060 };
-const LAST_GEO_KEY = 'rise_last_geo';
+const LAST_GEO_KEY = 'opticon_last_geo';
 const GEO_DETAIL_ZOOM = 13.6;
 const CACHE_DETAIL_ZOOM = 13.2;
 const IP_FALLBACK_ZOOM = 11.5;
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? 'https://rise-production.vercel.app' : '');
+  (import.meta.env.DEV ? 'https://opticon-production.vercel.app' : '');
 
 const apiPath = (path) => `${API_BASE}${path}`;
 
@@ -116,7 +116,7 @@ export default function LiveMapBackdrop({ dark }) {
   useEffect(() => { centerRef.current = center; }, [center]);
 
   useEffect(() => {
-    try { sawGeoGrantedRef.current = localStorage.getItem('rise_geo_granted') === '1'; } catch { sawGeoGrantedRef.current = false; }
+    try { sawGeoGrantedRef.current = localStorage.getItem('opticon_geo_granted') === '1'; } catch { sawGeoGrantedRef.current = false; }
   }, []);
 
   const persistGeo = useCallback((next, label) => {
@@ -143,7 +143,7 @@ export default function LiveMapBackdrop({ dark }) {
         setLocLabel('Current location');
         setGeoState('granted');
         persistGeo(next, 'Current location');
-        try { localStorage.setItem('rise_geo_granted', '1'); sawGeoGrantedRef.current = true; } catch {}
+        try { localStorage.setItem('opticon_geo_granted', '1'); sawGeoGrantedRef.current = true; } catch {}
       },
       async (geoErr) => {
         setGeoState(geoErr?.code === 1 ? 'denied' : 'unavailable');
@@ -178,7 +178,7 @@ export default function LiveMapBackdrop({ dark }) {
       setGeoState('granted');
       requestLocation();
       if (!sawGeoGrantedRef.current) {
-        try { localStorage.setItem('rise_geo_granted', '1'); } catch {}
+        try { localStorage.setItem('opticon_geo_granted', '1'); } catch {}
         sawGeoGrantedRef.current = true;
       }
     };
@@ -292,9 +292,9 @@ export default function LiveMapBackdrop({ dark }) {
           );
         };
 
-        // User pin
+        // User pin (Apple Maps style)
         addMarker(
-          'width:18px;height:24px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 32\'><path d=\'M12 0C5.4 0 0 5.4 0 12c0 8.8 12 20 12 20s12-11.2 12-20C24 5.4 18.6 0 12 0z\' fill=\'%23ff3b30\'/><circle cx=\'12\' cy=\'12\' r=\'5\' fill=\'white\'/></svg>");background-size:contain;background-repeat:no-repeat;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.35));',
+          'width:22px;height:32px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 27 43\'><defs><linearGradient id=\'pg\' x1=\'0\' y1=\'0\' x2=\'0\' y2=\'1\'><stop offset=\'0\' stop-color=\'%23ff453a\'/><stop offset=\'1\' stop-color=\'%23d70015\'/></linearGradient><filter id=\'s\'><feDropShadow dx=\'0\' dy=\'1\' stdDeviation=\'1.2\' flood-opacity=\'0.3\'/></filter></defs><ellipse cx=\'13.5\' cy=\'41\' rx=\'4\' ry=\'1.5\' fill=\'%23000\' opacity=\'.18\'/><path d=\'M13.5 0C6.04 0 0 6.04 0 13.5 0 25.27 13.5 41 13.5 41S27 25.27 27 13.5C27 6.04 20.96 0 13.5 0z\' fill=\'url(%23pg)\' filter=\'url(%23s)\'/><circle cx=\'13.5\' cy=\'13.5\' r=\'5.5\' fill=\'white\'/></svg>");background-size:contain;background-repeat:no-repeat;',
           'you',
           { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: mapsLink(userPosition.lat, userPosition.lon) },
           userPosition.lon, userPosition.lat

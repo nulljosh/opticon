@@ -1,8 +1,8 @@
-# Rise
+# Opticon
 
-Fast financial terminal with live markets, prediction signals, personal finance dashboard, and a paper-trading simulator.
+Financial terminal with live markets, prediction signals, situation monitor, personal finance dashboard, and a paper-trading simulator.
 
-**Live**: https://rise-production.vercel.app
+**Live**: https://opticon-production.vercel.app
 **Docs**: https://heyitsmejosh.com/rise/
 
 ![Project Map](map.svg)
@@ -14,8 +14,9 @@ Fast financial terminal with live markets, prediction signals, personal finance 
 - FMP (Financial Modeling Prep) primary + Yahoo Finance fallback
 - Polymarket prediction markets
 - Personal finance panel (portfolio, budget, debt tracker, spending trends)
-- Situation Monitor map (flights, traffic, construction incidents, seismic)
+- Situation Monitor map (flights, traffic, construction incidents, seismic, crime, local events)
 - Global geopolitical event feed (GDELT panel)
+- Auth system (bcrypt + httpOnly cookie sessions + email verification)
 - Vitest + Playwright tests
 
 ## Personal Finance
@@ -40,7 +41,7 @@ Demo data loads by default. Upload your own JSON to replace it.
 - Fast default map startup at NYC, then geolocation recenter when available
 - Small-town zoom behavior: when device location is available, map auto-focuses at neighborhood-level detail
 - User location drop-pin (`YOU`) + recenter control
-- Local overlays: traffic incidents + construction/barriers + seismic events
+- Local overlays: traffic incidents + construction/barriers + seismic events + crime + local events
 - Prediction markets projected onto geographic anchors
 - Global feed pulses: geopolitical events
 - Viewport-based local refresh: panning to a new city refreshes local overlays
@@ -54,6 +55,8 @@ Demo data loads by default. Upload your own JSON to replace it.
 - **GDELT**: Global geopolitical events feed.
 - **USGS**: Real-time earthquake data.
 - **OSM**: Traffic incidents and construction barriers.
+- **PredictHQ**: Local events aggregation (concerts, sports, community).
+- **Crime data**: Open data feeds for crime incidents.
 
 ## Run
 
@@ -69,6 +72,9 @@ Local URL: `http://localhost:5173`
 - `FMP_API_KEY` - Financial Modeling Prep API key (free at financialmodelingprep.com)
 - `STRIPE_PRICE_ID_STARTER` / `STRIPE_PRICE_ID_PRO` - Stripe pricing
 - `VITE_STRIPE_PRICE_ID_STARTER` / `VITE_STRIPE_PRICE_ID_PRO` - Client-side Stripe
+- `PREDICTHQ_API_KEY` - PredictHQ events API key
+- `KV_REST_API_URL` / `KV_REST_API_TOKEN` - Vercel KV for auth + subscriptions
+- `SESSION_SECRET` - Secret for signing session tokens
 
 ## Commands
 
@@ -84,7 +90,7 @@ npm run test:speed
 - Falls back to Yahoo Finance chart API per-symbol when FMP is unavailable.
 - 90s cache TTL during market hours to stay within FMP free tier limits.
 - Stocks and markets APIs keep a short in-memory warm cache and serve stale data on transient failures.
-- Stock/market handlers emit `X-Rise-Data-Status` (`live`/`cache`/`stale`) and `X-Rise-Data-Source` (`fmp`/`yahoo`/`mixed`).
+- Stock/market handlers emit `X-Opticon-Data-Status` (`live`/`cache`/`stale`) and `X-Opticon-Data-Source` (`fmp`/`yahoo`/`mixed`).
 - Frontend stock hook seeds from `/api/latest` cache, then refreshes live; UI shows `LIVE`, `FALLBACK`, or `STALE`.
 
 ## Layout

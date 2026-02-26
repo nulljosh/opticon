@@ -142,7 +142,7 @@ export default async function handler(req, res) {
   const freshCached = getCached(cacheKey, CACHE_TTL_MS);
   if (freshCached) {
     setStockResponseHeaders(req, res);
-    res.setHeader('X-Rise-Data-Status', 'cache');
+    res.setHeader('X-Opticon-Data-Status', 'cache');
     return res.status(200).json(freshCached);
   }
 
@@ -169,7 +169,7 @@ export default async function handler(req, res) {
       const staleCached = getCached(cacheKey, STALE_IF_ERROR_MS);
       if (staleCached) {
         setStockResponseHeaders(req, res);
-        res.setHeader('X-Rise-Data-Status', 'stale');
+        res.setHeader('X-Opticon-Data-Status', 'stale');
         return res.status(200).json(staleCached);
       }
       return res.status(500).json({ error: 'No valid stock data received' });
@@ -180,15 +180,15 @@ export default async function handler(req, res) {
     }
 
     setStockResponseHeaders(req, res);
-    res.setHeader('X-Rise-Data-Status', 'live');
-    res.setHeader('X-Rise-Data-Source', source);
+    res.setHeader('X-Opticon-Data-Status', 'live');
+    res.setHeader('X-Opticon-Data-Source', source);
     return res.status(200).json(stocks);
   } catch (err) {
     console.error('stocks-free handler error:', err);
     const staleCached = getCached(cacheKey, STALE_IF_ERROR_MS);
     if (staleCached) {
       setStockResponseHeaders(req, res);
-      res.setHeader('X-Rise-Data-Status', 'stale');
+      res.setHeader('X-Opticon-Data-Status', 'stale');
       return res.status(200).json(staleCached);
     }
     return res.status(500).json({ error: 'Failed to fetch stock data', details: err.message });

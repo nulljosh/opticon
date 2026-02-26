@@ -42,7 +42,7 @@ export default function AppDebug() {
 
   return (
     <div style={{ padding: 40, background: t.bg, color: t.text, minHeight: '100vh', fontFamily: 'monospace' }}>
-      <h1>Rise Debug</h1>
+      <h1>Opticon Debug</h1>
       <div style={{ marginTop: 20, lineHeight: 1.8 }}>
         <p><strong>Polymarket:</strong> {marketsStatus}</p>
         <p><strong>Live Prices:</strong> {pricesStatus}</p>

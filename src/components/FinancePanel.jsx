@@ -180,7 +180,7 @@ export default function FinancePanel({ dark, t, stocks, onClose }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'rise-portfolio.json';
+    a.download = 'opticon-portfolio.json';
     a.click();
     URL.revokeObjectURL(url);
   }, [exportData]);

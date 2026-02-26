@@ -63,7 +63,7 @@ export default async function handler(req, res) {
       qty: size != null ? parseFloat(size) : null,
       stop: stop != null ? parseFloat(stop) : null,
       target: target != null ? parseFloat(target) : null,
-      source: 'rise_frontend',
+      source: 'opticon_frontend',
       sentAt: new Date().toISOString(),
     };
 

@@ -69,7 +69,7 @@ export default function PricingPage({ dark, t, onClose }) {
             fontWeight: 700,
             color: t.text,
             margin: 0,
-          }}>Rise Pro</h1>
+          }}>Opticon Pro</h1>
           <button
             onClick={onClose}
             style={{
@@ -126,13 +126,15 @@ export default function PricingPage({ dark, t, onClose }) {
             </ul>
 
             <div style={{
-              padding: 12,
+              padding: '6px 16px',
               background: t.backgroundSecondary,
-              borderRadius: 12,
+              borderRadius: 100,
               textAlign: 'center',
-              color: t.textSecondary,
-              fontSize: 14,
-              fontWeight: 600,
+              color: t.textTertiary,
+              fontSize: 12,
+              fontWeight: 500,
+              width: 'fit-content',
+              margin: '0 auto',
             }}>
               Current Plan
             </div>

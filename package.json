@@ -1,7 +1,7 @@
 {
-  "name": "rise",
+  "name": "opticon",
   "private": true,
-  "version": "1.6.1",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
     "@stripe/stripe-js": "^8.7.0",
     "@vercel/blob": "^2.1.0",
     "@vercel/kv": "^3.0.0",
+    "bcryptjs": "^3.0.3",
     "maplibre-gl": "^5.18.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

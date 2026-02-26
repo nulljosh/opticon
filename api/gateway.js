@@ -1,4 +1,6 @@
+import auth from '../server/api/auth.js';
 import commodities from '../server/api/commodities.js';
+import crime from '../server/api/crime.js';
 import cron from '../server/api/cron.js';
 import earthquakes from '../server/api/earthquakes.js';
 import events from '../server/api/events.js';
@@ -6,6 +8,7 @@ import flights from '../server/api/flights.js';
 import history from '../server/api/history.js';
 import incidents from '../server/api/incidents.js';
 import latest from '../server/api/latest.js';
+import localEvents from '../server/api/local-events.js';
 import markets from '../server/api/markets.js';
 import news from '../server/api/news.js';
 import prices from '../server/api/prices.js';
@@ -25,7 +28,9 @@ import brokerWebhook from '../server/api/broker/webhook.js';
 import brokerMorningRun from '../server/api/broker/morning-run.js';
 
 const ROUTES = {
+  auth,
   commodities,
+  crime,
   cron,
   earthquakes,
   events,
@@ -33,6 +38,7 @@ const ROUTES = {
   history,
   incidents,
   latest,
+  'local-events': localEvents,
   markets,
   news,
   prices,

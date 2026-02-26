@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       }
       const baseUrl = process.env.VERCEL_URL 
         ? `https://${process.env.VERCEL_URL}` 
-        : 'https://rise-production.vercel.app';
+        : 'https://opticon-production.vercel.app';
       const session = await getStripe().checkout.sessions.create({
         mode: 'subscription',
         payment_method_types: ['card'],
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
       if (!cid) return res.status(400).json({ error: 'Customer ID required' });
       const baseUrl = process.env.VERCEL_URL 
         ? `https://${process.env.VERCEL_URL}` 
-        : 'https://rise-production.vercel.app';
+        : 'https://opticon-production.vercel.app';
       const session = await getStripe().billingPortal.sessions.create({
         customer: cid,
         return_url: baseUrl,

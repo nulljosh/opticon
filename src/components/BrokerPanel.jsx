@@ -218,7 +218,7 @@ export default function BrokerPanel({ dark, t, font, isPro, onUpgrade, config, o
             disabled={!isPro}
           />
           <div style={{ fontSize: 10, color: t.textTertiary, marginTop: 5, lineHeight: 1.5 }}>
-            Rise will POST signal JSON to this URL when auto-send is on.
+            Opticon will POST signal JSON to this URL when auto-send is on.
           </div>
         </div>
       )}

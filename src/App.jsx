@@ -12,7 +12,6 @@ import Ticker from './components/Ticker';
 import PricingPage from './components/PricingPage';
 import FinancePanel from './components/FinancePanel';
 import LiveMapBackdrop from './components/LiveMapBackdrop';
-import { createBroker } from './utils/broker';
 import { useSubscription } from './hooks/useSubscription';
 import { useAuth } from './hooks/useAuth';
 import { useWatchlist } from './hooks/useWatchlist';
@@ -1135,7 +1134,7 @@ const reset = useCallback(() => {
       <footer style={{ position: 'relative', zIndex: 1, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textTertiary, pointerEvents: 'auto' }}>
         <span>MIT License</span>
         <span>&copy; 2026 &middot;{' '}<a href="https://heyitsmejosh.com" target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'none', transition: 'color 0.15s' }} onMouseEnter={e => e.target.style.color = t.text} onMouseLeave={e => e.target.style.color = t.textSecondary}>Portfolio</a></span>
-        <a href="https://github.com/nulljosh/rise" target="_blank" rel="noopener noreferrer" style={{ color: t.textTertiary, textDecoration: 'none', transition: 'color 0.15s' }} onMouseEnter={e => e.target.style.color = t.text} onMouseLeave={e => e.target.style.color = t.textTertiary}>GitHub</a>
+        <a href="https://github.com/nulljosh/opticon" target="_blank" rel="noopener noreferrer" style={{ color: t.textTertiary, textDecoration: 'none', transition: 'color 0.15s' }} onMouseEnter={e => e.target.style.color = t.text} onMouseLeave={e => e.target.style.color = t.textTertiary}>GitHub</a>
       </footer>
     </div>
   );

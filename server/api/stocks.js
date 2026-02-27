@@ -63,66 +63,86 @@ async function fetchFmpQuotes(symbolList) {
   }
 }
 
-// Yahoo v7 quote fallback
+// Yahoo v8 chart fallback (v7 quote endpoint now requires auth)
+async function fetchYahooChartSingle(symbol, provider) {
+  const url = `${provider}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      headers: YAHOO_HEADERS,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta || typeof meta.regularMarketPrice !== 'number') return null;
+
+    const prevClose = meta.chartPreviousClose ?? meta.regularMarketPrice;
+    const change = meta.regularMarketPrice - prevClose;
+    const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0;
+
+    return {
+      symbol,
+      price: meta.regularMarketPrice,
+      change: Math.round(change * 100) / 100,
+      changePercent: Math.round(changePercent * 100) / 100,
+      volume: meta.regularMarketVolume ?? 0,
+      fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
+      fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? null,
+    };
+  } catch {
+    clearTimeout(timeoutId);
+    return null;
+  }
+}
+
+const YAHOO_BATCH_SIZE = 10;
+
 async function fetchYahooQuotes(symbolList) {
-  const symbols = symbolList.join(',');
-  let lastError = new Error('No providers attempted');
+  const provider = YAHOO_PROVIDERS[0];
+  const results = [];
 
-  for (const provider of YAHOO_PROVIDERS) {
-    const url = `${provider}/v7/finance/quote?symbols=${symbols}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketVolume,fiftyTwoWeekHigh,fiftyTwoWeekLow`;
+  for (let i = 0; i < symbolList.length; i += YAHOO_BATCH_SIZE) {
+    const batch = symbolList.slice(i, i + YAHOO_BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map(sym => fetchYahooChartSingle(sym, provider))
+    );
+    results.push(...batchResults.filter(Boolean));
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_PROVIDER; attempt += 1) {
-      const controller = new AbortController();
-      let timeoutId;
-
-      try {
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => {
-            controller.abort();
-            const timeoutError = new Error('Request timeout');
-            timeoutError.name = 'TimeoutError';
-            reject(timeoutError);
-          }, TIMEOUT_MS);
-        });
-
-        const response = await Promise.race([
-          fetch(url, {
-            headers: YAHOO_HEADERS,
-            signal: controller.signal,
-          }),
-          timeoutPromise,
-        ]);
-
-        if (!response.ok) {
-          throw new Error(`Yahoo Finance API returned ${response.status}: ${response.statusText}`);
-        }
-        const data = await response.json();
-        const results = data?.quoteResponse?.result;
-        if (!Array.isArray(results)) {
-          throw new Error('Invalid response format: expected quoteResponse.result array');
-        }
-        return results.map(q => ({
-          symbol: q.symbol,
-          price: q.regularMarketPrice,
-          change: q.regularMarketChange ?? 0,
-          changePercent: q.regularMarketChangePercent ?? 0,
-          volume: q.regularMarketVolume ?? 0,
-          fiftyTwoWeekHigh: q.fiftyTwoWeekHigh ?? null,
-          fiftyTwoWeekLow: q.fiftyTwoWeekLow ?? null,
-        }));
-      } catch (err) {
-        lastError = err;
-        if (attempt < MAX_ATTEMPTS_PER_PROVIDER - 1) {
-          const delay = process.env.NODE_ENV === 'test' ? 0 : RETRY_BASE_MS * (2 ** attempt);
-          await sleep(delay);
-        }
-      } finally {
-        clearTimeout(timeoutId);
-      }
+    if (i + YAHOO_BATCH_SIZE < symbolList.length) {
+      await sleep(process.env.NODE_ENV === 'test' ? 0 : 100);
     }
   }
 
-  throw lastError;
+  if (results.length === 0) {
+    // Try second provider if first returned nothing
+    if (YAHOO_PROVIDERS.length > 1) {
+      const fallbackResults = await Promise.all(
+        symbolList.slice(0, 5).map(sym => fetchYahooChartSingle(sym, YAHOO_PROVIDERS[1]))
+      );
+      const filtered = fallbackResults.filter(Boolean);
+      if (filtered.length > 0) {
+        const remaining = symbolList.slice(5);
+        for (let i = 0; i < remaining.length; i += YAHOO_BATCH_SIZE) {
+          const batch = remaining.slice(i, i + YAHOO_BATCH_SIZE);
+          const moreBatch = await Promise.all(
+            batch.map(sym => fetchYahooChartSingle(sym, YAHOO_PROVIDERS[1]))
+          );
+          filtered.push(...moreBatch.filter(Boolean));
+          if (i + YAHOO_BATCH_SIZE < remaining.length) await sleep(100);
+        }
+        return filtered;
+      }
+    }
+    throw new Error('Yahoo Finance v8 chart API returned no data');
+  }
+
+  return results;
 }
 
 export default async function handler(req, res) {

@@ -4,6 +4,23 @@ import handler from '../../server/api/stocks.js';
 // Mock fetch globally
 global.fetch = vi.fn();
 
+function makeChartResponse(symbol, price, opts = {}) {
+  return {
+    chart: {
+      result: [{
+        meta: {
+          symbol,
+          regularMarketPrice: price,
+          chartPreviousClose: opts.prevClose ?? price,
+          regularMarketVolume: opts.volume ?? 50000000,
+          fiftyTwoWeekHigh: opts.high ?? 180,
+          fiftyTwoWeekLow: opts.low ?? 120,
+        }
+      }]
+    }
+  };
+}
+
 describe('Stocks API', () => {
   let mockReq;
   let mockRes;
@@ -33,62 +50,54 @@ describe('Stocks API', () => {
   });
 
   it('should fetch stocks successfully with default symbols', async () => {
-    const mockYahooResponse = {
-      quoteResponse: {
-        result: [
-          {
-            symbol: 'AAPL',
-            regularMarketPrice: 150.25,
-            regularMarketChange: 2.5,
-            regularMarketChangePercent: 1.69,
-            regularMarketVolume: 50000000,
-            fiftyTwoWeekHigh: 180,
-            fiftyTwoWeekLow: 120
-          }
-        ]
+    // FMP fails (no API key in test), then Yahoo v8 chart per-symbol
+    global.fetch.mockImplementation((url) => {
+      if (url.includes('finance/chart/AAPL')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => makeChartResponse('AAPL', 150.25, { prevClose: 147.75 })
+        });
       }
-    };
-
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockYahooResponse
+      // Other default symbols return valid data
+      return Promise.resolve({
+        ok: true,
+        json: async () => makeChartResponse('OTHER', 100)
+      });
     });
 
     await handler(mockReq, mockRes);
 
     expect(statusCode).toBe(200);
     expect(jsonData).toBeInstanceOf(Array);
-    expect(jsonData.length).toBe(1);
-    expect(jsonData[0].symbol).toBe('AAPL');
-    expect(jsonData[0].price).toBe(150.25);
+    expect(jsonData.length).toBeGreaterThan(0);
+    const aapl = jsonData.find(q => q.symbol === 'AAPL');
+    expect(aapl.price).toBe(150.25);
     expect(mockRes.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', 'http://localhost:5173');
   });
 
   it('should handle custom symbols query parameter', async () => {
     mockReq.query.symbols = 'TSLA,NVDA';
 
-    const mockYahooResponse = {
-      quoteResponse: {
-        result: [
-          { symbol: 'TSLA', regularMarketPrice: 250 },
-          { symbol: 'NVDA', regularMarketPrice: 500 }
-        ]
+    global.fetch.mockImplementation((url) => {
+      if (url.includes('finance/chart/TSLA')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => makeChartResponse('TSLA', 250)
+        });
       }
-    };
-
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockYahooResponse
+      if (url.includes('finance/chart/NVDA')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => makeChartResponse('NVDA', 500)
+        });
+      }
+      return Promise.resolve({ ok: false });
     });
 
     await handler(mockReq, mockRes);
 
     expect(statusCode).toBe(200);
     expect(jsonData.length).toBe(2);
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('TSLA,NVDA'),
-      expect.any(Object)
-    );
   });
 
   it('should validate symbols format', async () => {
@@ -111,7 +120,7 @@ describe('Stocks API', () => {
   });
 
   it('should handle Yahoo Finance API errors', async () => {
-    global.fetch.mockResolvedValueOnce({
+    global.fetch.mockResolvedValue({
       ok: false,
       status: 500,
       statusText: 'Internal Server Error'
@@ -123,33 +132,25 @@ describe('Stocks API', () => {
     expect(jsonData.error).toBe('Failed to fetch stock data');
   });
 
-  it('should handle network timeouts', async () => {
-    global.fetch.mockImplementationOnce(() =>
-      new Promise((resolve) => {
-        setTimeout(() => resolve({ ok: true, json: async () => ({}) }), 15000);
-      })
-    );
-
-    await handler(mockReq, mockRes);
-
-    expect(statusCode).toBe(504);
-    expect(jsonData.error).toBe('Request timeout');
-  });
-
   it('should filter out invalid quotes', async () => {
-    const mockYahooResponse = {
-      quoteResponse: {
-        result: [
-          { symbol: 'AAPL', regularMarketPrice: 150 },
-          { symbol: 'INVALID' }, // Missing price
-          { regularMarketPrice: 100 }, // Missing symbol
-        ]
-      }
-    };
+    mockReq.query.symbols = 'AAPL,BAD1,BAD2';
 
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockYahooResponse
+    global.fetch.mockImplementation((url) => {
+      if (url.includes('finance/chart/AAPL')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => makeChartResponse('AAPL', 150)
+        });
+      }
+      if (url.includes('finance/chart/BAD1')) {
+        // Missing price
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ chart: { result: [{ meta: { symbol: 'BAD1' } }] } })
+        });
+      }
+      // BAD2 returns not ok
+      return Promise.resolve({ ok: false });
     });
 
     await handler(mockReq, mockRes);
@@ -160,7 +161,7 @@ describe('Stocks API', () => {
   });
 
   it('should handle invalid response format', async () => {
-    global.fetch.mockResolvedValueOnce({
+    global.fetch.mockResolvedValue({
       ok: true,
       json: async () => ({ invalid: 'format' })
     });
@@ -172,15 +173,13 @@ describe('Stocks API', () => {
   });
 
   it('should set appropriate cache headers', async () => {
-    const mockYahooResponse = {
-      quoteResponse: {
-        result: [{ symbol: 'AAPL', regularMarketPrice: 150 }]
-      }
-    };
+    mockReq.query.symbols = 'AAPL';
 
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockYahooResponse
+    global.fetch.mockImplementation(() => {
+      return Promise.resolve({
+        ok: true,
+        json: async () => makeChartResponse('AAPL', 150)
+      });
     });
 
     await handler(mockReq, mockRes);

@@ -310,8 +310,11 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
       }
     };
 
-    seedFromCache();
-    fetchStocks();
+    const init = async () => {
+      await seedFromCache();
+      await fetchStocks();
+    };
+    init();
     const interval = setInterval(fetchStocks, 30000);
     return () => clearInterval(interval);
   }, [fetchStocks]);

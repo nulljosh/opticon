@@ -1,50 +1,37 @@
 # Opticon
 
-Map-first situation monitor with scrolling stock tickers, personal finance dashboard, and integrated data feeds.
+Financial terminal and situation monitor. Live map, stock tickers, portfolio management, and prediction markets in one dashboard.
 
 **Live**: https://opticon.heyitsmejosh.com
 
-![Project Map](map.svg)
+## Architecture
 
-## What It Does
-
-- Full-page live map with tactical HUD (traffic, crime, earthquakes, events, flights, weather)
-- Scrolling stock ticker: Mag 7 + 100 US assets, 30s refresh (FMP batch primary, Yahoo chunked fallback)
-- Prediction markets geo-anchored as map pins (Polymarket)
-- Personal finance panel: portfolio, budget, debt, goals, spending trends
-- Server-side portfolio persistence via Vercel KV + CLI access (`balance`)
-- Auth system: bcrypt, httpOnly sessions, email verification
+![Architecture](architecture.svg)
 
 ## Stack
 
 - React 19 + Vite + MapLibre GL
-- Vercel serverless (`api/gateway.js` single function, 20+ routes)
-- Vercel KV (Upstash Redis) for auth, sessions, portfolio
-- FMP batch + Yahoo Finance (throttled fallback) + Polymarket + GDELT + USGS + OSM + PredictHQ
+- Vercel serverless (`api/gateway.js`, 20+ routes)
+- Vercel KV (Upstash Redis) — auth, sessions, portfolio
+- FMP batch API + Yahoo Finance (chunked fallback)
+- Polymarket, GDELT, USGS, OSM, PredictHQ
+- Stripe
 
-## Run
+## Dev
 
 ```bash
 npm install
 npm run dev
+npm test -- --run
+npm run build
 ```
 
-## Layout
+## Roadmap
 
-- `src/` -- UI components, hooks, utils
-- `server/api/` -- handler modules (stocks, auth, portfolio, traffic, earthquakes, etc.)
-- `api/gateway.js` -- single serverless entry point
-- `docs/` -- GitHub Pages docs site
-
-## Coming Soon
-
-- Custom watchlist with autocomplete ticker search
-- Live markets panel with per-stock charts
-
-## Deploy
-
-Pushing `main` triggers Vercel production deploy at `opticon.heyitsmejosh.com`.
-
-## License
-
-MIT. Not financial advice.
+- [x] iOS companion app
+- [x] PWA support
+- [ ] Apple Pay via Stripe
+- [ ] WebSocket real-time quotes
+- [ ] Portfolio analytics dashboard
+- [ ] Custom watchlist with alerts
+- [ ] Prediction market accuracy tracking

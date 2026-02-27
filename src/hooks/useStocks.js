@@ -267,6 +267,11 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
             lastAttemptAt: now,
           };
         }
+        // Grace period: only show fallback after 3+ consecutive failures
+        // Prevents FALLBACK flash during cold start / transient API issues
+        if (retryCountRef.current < 3) {
+          return { ...prev, lastAttemptAt: now };
+        }
         return {
           status: 'fallback',
           source: prev.source === 'live' ? 'cache' : prev.source,

@@ -956,29 +956,31 @@ const reset = useCallback(() => {
               <MobileMenuItem t={t} font={font} onClick={() => setDark(!dark)}>
                 {dark ? 'LIGHT MODE' : 'DARK MODE'}
               </MobileMenuItem>
+              <MobileMenuDivider t={t} />
+              <MobileMenuItem t={t} font={font} onClick={logout} style={{ color: '#ef4444' }}>
+                LOGOUT
+              </MobileMenuItem>
             </MobileMenu>
-            <button
-              onClick={logout}
-              style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 6, padding: '5px 10px', color: '#ef4444', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: font }}
-            >
-              LOGOUT
-            </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 10, color: t.textTertiary, fontVariantNumeric: 'tabular-nums' }}>{formatLastUpdated(lastUpdated)}</span>
             {pmError && <span style={{ fontSize: 9, color: t.red }}>API error</span>}
             <span style={{ width: 1, height: 14, background: t.border }} />
             <button
               onClick={() => setShowFinance(true)}
-              style={{ background: t.glass, border: `1px solid ${t.border}`, borderRadius: 6, padding: '5px 10px', color: t.textSecondary, fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: font }}
+              style={{ background: t.glass, border: `1px solid ${t.border}`, borderRadius: 6, padding: '5px 10px', color: t.textSecondary, fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: font, transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
             >
               PORTFOLIO
             </button>
             {isFree && (
               <button
                 onClick={() => setShowPricing(true)}
-                style={{ background: '#0071e3', border: 'none', borderRadius: 6, padding: '5px 10px', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+                style={{ background: '#0071e3', border: 'none', borderRadius: 6, padding: '5px 10px', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
               >
                 UPGRADE
               </button>

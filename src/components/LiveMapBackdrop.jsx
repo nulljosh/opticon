@@ -37,6 +37,26 @@ const GEO_KEYWORDS = [
   { re: /\btokyo\b/i, lat: 35.6762, lon: 139.6503, label: 'Tokyo' },
   { re: /\bvancouver\b/i, lat: 49.2827, lon: -123.1207, label: 'Vancouver' },
   { re: /\btoronto\b/i, lat: 43.6532, lon: -79.3832, label: 'Toronto' },
+  { re: /\bhouston|texans|rockets|astros\b/i, lat: 29.7604, lon: -95.3698, label: 'Houston' },
+  { re: /\bphiladelphia|eagles|76ers|sixers|phillies\b/i, lat: 39.9526, lon: -75.1652, label: 'Philadelphia' },
+  { re: /\bphoenix|suns|cardinals\b/i, lat: 33.4484, lon: -112.0740, label: 'Phoenix' },
+  { re: /\bseattle|seahawks|mariners|kraken\b/i, lat: 47.6062, lon: -122.3321, label: 'Seattle' },
+  { re: /\bdenver|nuggets|broncos|avalanche\b/i, lat: 39.7392, lon: -104.9903, label: 'Denver' },
+  { re: /\batlanta|hawks|falcons|braves\b/i, lat: 33.7490, lon: -84.3880, label: 'Atlanta' },
+  { re: /\bdetroit|lions|tigers|pistons|red wings\b/i, lat: 42.3314, lon: -83.0458, label: 'Detroit' },
+  { re: /\bminneapolis|minnesota|timberwolves|vikings|twins\b/i, lat: 44.9778, lon: -93.2650, label: 'Minneapolis' },
+  { re: /\bmontreal|canadiens|habs\b/i, lat: 45.5017, lon: -73.5673, label: 'Montreal' },
+  { re: /\bberlin\b/i, lat: 52.5200, lon: 13.4050, label: 'Berlin' },
+  { re: /\bmoscow|kremlin|russia\b/i, lat: 55.7558, lon: 37.6176, label: 'Moscow' },
+  { re: /\bbeijing|china\b/i, lat: 39.9042, lon: 116.4074, label: 'Beijing' },
+  { re: /\bmumbai|bombay|india\b/i, lat: 19.0760, lon: 72.8777, label: 'Mumbai' },
+  { re: /\bdubai|uae|emirates\b/i, lat: 25.2048, lon: 55.2708, label: 'Dubai' },
+  { re: /\bsydney|australia\b/i, lat: -33.8688, lon: 151.2093, label: 'Sydney' },
+  { re: /\bseoul|south korea\b/i, lat: 37.5665, lon: 126.9780, label: 'Seoul' },
+  { re: /\bsingapore\b/i, lat: 1.3521, lon: 103.8198, label: 'Singapore' },
+  { re: /\bistanbul|turkey\b/i, lat: 41.0082, lon: 28.9784, label: 'Istanbul' },
+  { re: /\bcairo|egypt\b/i, lat: 30.0444, lon: 31.2357, label: 'Cairo' },
+  { re: /\blagos|nigeria\b/i, lat: 6.5244, lon: 3.3792, label: 'Lagos' },
 ];
 
 const CITY_HUBS = [
@@ -110,7 +130,7 @@ export default function LiveMapBackdrop({ dark }) {
   const [userPosition, setUserPosition] = useState(initPos);
   const [locLabel, setLocLabel] = useState(storedGeo?.label || 'Locating…');
   const [geoState, setGeoState] = useState(storedGeo ? 'cached' : 'checking');
-  const [payload, setPayload] = useState({ incidents: [], trafficIncidents: [], earthquakes: [], events: [], markets: [] });
+  const [payload, setPayload] = useState({ incidents: [], trafficIncidents: [], earthquakes: [], events: [], markets: [], newsArticles: [] });
   const [selected, setSelected] = useState(null);
 
   useEffect(() => { centerRef.current = center; }, [center]);
@@ -246,12 +266,13 @@ export default function LiveMapBackdrop({ dark }) {
     let cancelled = false;
     const fetchSituation = async () => {
       try {
-        const [inc, traffic, eq, ev, mk] = await Promise.all([
+        const [inc, traffic, eq, ev, mk, news] = await Promise.all([
           fetch(apiPath(`/api/incidents?lat=${center.lat}&lon=${center.lon}`)).then(r => r.json()).catch(() => ({ incidents: [] })),
           fetch(apiPath(`/api/traffic?lat=${center.lat}&lon=${center.lon}`)).then(r => r.json()).catch(() => ({ incidents: [] })),
           fetch(apiPath('/api/earthquakes')).then(r => r.json()).catch(() => ({ earthquakes: [] })),
           fetch(apiPath('/api/events')).then(r => r.json()).catch(() => ({ events: [] })),
           fetch(apiPath('/api/markets')).then(r => r.json()).catch(() => []),
+          fetch(apiPath(`/api/news?lat=${center.lat}&lon=${center.lon}`)).then(r => r.json()).catch(() => ({ articles: [] })),
         ]);
         if (!cancelled) {
           const fb = fallbackPayload(center);
@@ -261,6 +282,7 @@ export default function LiveMapBackdrop({ dark }) {
             earthquakes: eq.earthquakes || [],
             events: ev.events?.length ? ev.events : fb.events,
             markets: Array.isArray(mk) ? mk.slice(0, 20) : [],
+            newsArticles: Array.isArray(news?.articles) ? news.articles : [],
           });
         }
       } catch {
@@ -354,6 +376,28 @@ export default function LiveMapBackdrop({ dark }) {
             'width:9px;height:9px;border-radius:50%;background:#22D3EE;box-shadow:0 0 0 0 rgba(34,211,238,0.5);animation:pulse-cyan 2.2s infinite;',
             `${target.label}: ${ev.title}`,
             { type: 'event', title: ev.country ? `[${ev.country}] ${target.label}` : target.label, detail: ev.title, level: 'global', source: 'GDELT / News feed', link: ev.url || 'https://www.gdeltproject.org/' },
+            target.lon, target.lat
+          );
+        });
+
+        payload.newsArticles.slice(0, 12).forEach((article, i) => {
+          let target = null;
+          if (typeof article.lat === 'number' && typeof article.lon === 'number') {
+            target = { lat: article.lat, lon: article.lon, label: article.source || 'News' };
+          } else {
+            target = geoKeywordMatch(article.title);
+          }
+          if (!target) {
+            const angle = (i / 12) * 2 * Math.PI;
+            const r = 0.026 + (i % 3) * 0.014;
+            target = { lat: center.lat + Math.sin(angle) * r, lon: center.lon + Math.cos(angle) * r, label: 'Global' };
+          }
+          const pubTime = article.publishedAt ? new Date(article.publishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+          const detail = [article.source, pubTime].filter(Boolean).join(' · ');
+          addMarker(
+            'width:8px;height:8px;border-radius:50%;background:#60A5FA;box-shadow:0 0 0 0 rgba(96,165,250,0.5);animation:pulse-blue 2.1s infinite;',
+            article.title,
+            { type: 'news', title: article.title || 'News', detail: detail || 'News article', level: 'global', source: 'GDELT News', link: article.url || 'https://www.gdeltproject.org/' },
             target.lon, target.lat
           );
         });

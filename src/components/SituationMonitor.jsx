@@ -36,7 +36,7 @@ export default function SituationMonitor({
     activeCenter, selectedCity, setSelectedCity,
     worldCities, userLocation,
     flights, traffic, flightsLoading, trafficLoading, flightsError, trafficError,
-    incidents, earthquakes, events, weatherAlerts,
+    incidents, earthquakes, events, weatherAlerts, news,
   } = useSituation();
 
   // Initialize MapLibre
@@ -467,7 +467,7 @@ export default function SituationMonitor({
 
       {/* Global events panel */}
       {events.length > 0 && (
-        <div>
+        <div style={{ marginBottom: news.length > 0 ? 12 : 0 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: t.textSecondary, fontFamily: font, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
             Global Events
           </div>
@@ -476,6 +476,27 @@ export default function SituationMonitor({
               <div key={i} style={{ fontSize: 9, color: t.textTertiary, fontFamily: font, padding: '2px 0', borderBottom: `1px solid ${t.border}`, lineHeight: 1.4 }}>
                 <span style={{ color: t.textSecondary }}>{ev.country ? `[${ev.country}] ` : ''}</span>
                 {ev.title}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* News panel */}
+      {news.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: t.textSecondary, fontFamily: font, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            News
+          </div>
+          <div style={{ maxHeight: 100, overflowY: 'auto' }}>
+            {news.slice(0, 8).map((article, i) => (
+              <div key={i} style={{ fontSize: 9, color: t.textTertiary, fontFamily: font, padding: '2px 0', borderBottom: `1px solid ${t.border}`, lineHeight: 1.4 }}>
+                <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'none' }}>
+                  {article.title}
+                </a>
+                <span style={{ color: t.textTertiary, marginLeft: 4 }}>
+                  {article.source} • {article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : ''}
+                </span>
               </div>
             ))}
           </div>

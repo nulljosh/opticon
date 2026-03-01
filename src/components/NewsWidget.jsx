@@ -9,7 +9,7 @@ export default function NewsWidget({ dark, t }) {
     // Fetch from api/news endpoint
     const fetchNews = async () => {
       try {
-        const res = await fetch('/api/news?category=business');
+        const res = await fetch('/api/news');
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
@@ -47,7 +47,6 @@ export default function NewsWidget({ dark, t }) {
     return (
       <div style={{ textAlign: 'center', padding: 20 }}>
         <div style={{ color: t.red, fontSize: 11 }}>News unavailable: {error}</div>
-        <div style={{ color: t.textTertiary, fontSize: 10, marginTop: 4 }}>NewsAPI key may need configuration</div>
       </div>
     );
   }
@@ -82,9 +81,9 @@ export default function NewsWidget({ dark, t }) {
           }}
         >
           <div style={{ display: 'flex', gap: 10 }}>
-            {article.urlToImage && (
+            {article.image && (
               <img
-                src={article.urlToImage}
+                src={article.image}
                 alt=""
                 style={{ width: 60, height: 60, borderRadius: 6, objectFit: 'cover' }}
               />
@@ -94,7 +93,7 @@ export default function NewsWidget({ dark, t }) {
                 {article.title}
               </div>
               <div style={{ fontSize: 10, color: t.textTertiary }}>
-                {article.source?.name} • {new Date(article.publishedAt).toLocaleDateString()}
+                {article.source} • {new Date(article.publishedAt).toLocaleDateString()}
               </div>
             </div>
           </div>

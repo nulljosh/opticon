@@ -4,11 +4,11 @@ export const darkTheme = {
   surface: 'rgba(28,28,30,0.8)',
   glass: 'rgba(255,255,255,0.06)',
   glassHover: 'rgba(255,255,255,0.12)',
-  border: 'rgba(255,255,255,0.1)',
+  border: 'rgba(255,255,255,0.06)',
   text: '#FFFFFF',
   textSecondary: 'rgba(255,255,255,0.6)',
   textTertiary: 'rgba(255,255,255,0.4)',
-  accent: '#d8b4fe',
+  accent: '#0a84ff',
   green: '#30D158',
   red: '#FF453A',
   yellow: '#FFD60A',
@@ -19,15 +19,15 @@ export const darkTheme = {
 };
 
 export const lightTheme = {
-  bg: '#F2F2F7',
+  bg: '#ffffff',
   surface: '#FFFFFF',                   // Opaque white — no grey bleed through semi-transparent layers
   glass: 'rgba(255,255,255,0.92)',      // Slight transparency for cards on grey bg
   glassHover: '#FFFFFF',
   border: 'rgba(0,0,0,0.09)',
-  text: '#1C1C1E',                      // Apple off-black — less harsh than pure black
+  text: '#111111',                       // Near-black — readout style
   textSecondary: 'rgba(60,60,67,0.6)', // Apple secondary label
   textTertiary: 'rgba(60,60,67,0.45)', // Apple tertiary — readable at small sizes
-  accent: '#0071e3',                    // Apple blue — replaces illegible dark brown
+  accent: '#0a84ff',                    // Readout blue
   green: '#34C759',
   red: '#FF3B30',
   yellow: '#FFCC00',

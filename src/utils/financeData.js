@@ -4,16 +4,15 @@
 export const DEMO_HOLDINGS = [
   { symbol: 'AAPL', shares: 0.0115, costBasis: 259.13, currency: 'USD' },
   { symbol: 'HOOD', shares: 0.0384, costBasis: 78.13, currency: 'USD' },
-  { symbol: 'IBM', shares: 0.006, costBasis: 291.67, currency: 'USD' },
-  { symbol: 'NVDA', shares: 0.0084, costBasis: 194.05, currency: 'USD' },
+  { symbol: 'NVDA', shares: 0.0254, costBasis: 194.05, currency: 'USD' },
   { symbol: 'ORCL', shares: 0.0126, costBasis: 153.97, currency: 'USD' },
-  { symbol: 'SLV', shares: 0.045, costBasis: 66.67, currency: 'USD' },
-  { symbol: 'SNDK', shares: 0.0065, costBasis: 606.15, currency: 'USD' },
+  { symbol: 'SLV', shares: 0.1449, costBasis: 66.67, currency: 'USD' },
+  { symbol: 'SNDK', shares: 0.0113, costBasis: 606.15, currency: 'USD' },
 ];
 
 export const DEMO_ACCOUNTS = [
-  { name: 'Vacation', type: 'chequing', balance: 342.58, currency: 'CAD' },
-  { name: 'TFSA', type: 'investment', balance: 536.02, currency: 'CAD' },
+  { name: 'Vacation', type: 'chequing', balance: 60.44, currency: 'CAD' },
+  { name: 'TFSA', type: 'investment', balance: 535.76, currency: 'CAD' },
   { name: 'Starbucks Card', type: 'gift', balance: 9.74, currency: 'CAD' },
 ];
 

@@ -33,11 +33,11 @@ export const DEMO_DEBT = [
   { name: 'Mom', balance: 140, rate: 0, minPayment: 0, note: 'Movies + YouTube Premium + misc' },
   { name: 'RBC VISA', balance: 5500, rate: 0, minPayment: 0, note: 'Collections' },
   { name: 'Bell', balance: 906.22, rate: 0, minPayment: 0, note: 'Suspended if unpaid' },
-  { name: 'Telus', balance: 788.08, rate: 0, minPayment: 50.38, note: 'Easy Payment: $50.38/mo x 20mo' },
+  { name: 'Telus', balance: 525.39, rate: 0, minPayment: 50.38, note: 'Easy Payment: $50.38/mo x 20mo' },
 ];
 
 export const DEMO_GOALS = [
-  { name: 'Pay off debt', target: 7334.30, saved: 0, priority: 'high', deadline: '2027-07' },
+  { name: 'Pay off debt', target: 7071.61, saved: 0, priority: 'high', deadline: '2027-07' },
   { name: 'MacBook Pro', target: 3500, saved: 0, priority: 'medium', note: 'After debt' },
   { name: 'Apple Watch Ultra', target: 1200, saved: 0, priority: 'medium', note: '$50/mo financing' },
   { name: 'GBA SP + Pokemon Sapphire', target: 320, saved: 0, priority: 'low' },

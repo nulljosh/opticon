@@ -24,7 +24,7 @@ export const DEMO_BUDGET = {
     { name: 'Food', amount: 374, frequency: 'monthly', note: '4-month avg' },
     { name: 'Phone + Watch', amount: 165, frequency: 'monthly', note: 'Telus 5G+ $115 + device $50.38' },
     { name: 'Gym', amount: 30, frequency: 'monthly' },
-    { name: 'Claude Max 5x', amount: 137, frequency: 'monthly', note: 'CA$136.60/mo (upgraded from Pro)' },
+    { name: 'Claude Max 5x', amount: 126, frequency: 'monthly', note: 'CA$126.18/mo' },
   ],
 };
 

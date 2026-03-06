@@ -233,7 +233,7 @@ export default function LiveMapBackdrop({ dark }) {
           interactive: true,
           attributionControl: false,
         });
-        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-left');
         map.on('moveend', () => {
           const c = map.getCenter();
           setCenter((prev) => {
@@ -294,6 +294,51 @@ export default function LiveMapBackdrop({ dark }) {
     return () => { cancelled = true; clearInterval(id); };
   }, [center.lat, center.lon]);
 
+  // User pin + local pulse -- render immediately on map load, no API dependency
+  const userMarkersRef = useRef([]);
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    (async () => {
+      try {
+        const maplibregl = (await import('maplibre-gl')).default;
+        userMarkersRef.current.forEach(m => m.remove());
+        userMarkersRef.current = [];
+
+        const addUserMarker = (css, title, data, lon, lat) => {
+          if (!hasSource(data)) return;
+          const el = document.createElement('div');
+          el.style.cssText = css;
+          if (title) el.title = title;
+          el.addEventListener('mouseenter', () => setSelected(data));
+          el.addEventListener('click', (e) => { e.stopPropagation(); setSelected(data); });
+          userMarkersRef.current.push(
+            new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(mapInstanceRef.current)
+          );
+        };
+
+        // User pin (Apple Maps drop pin style)
+        addUserMarker(
+          'width:14px;height:21px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 28 42\'><defs><radialGradient id=\'rg\' cx=\'40%25\' cy=\'35%25\' r=\'60%25\'><stop offset=\'0\' stop-color=\'%23ff6961\'/><stop offset=\'1\' stop-color=\'%23cc0000\'/></radialGradient><filter id=\'ds\'><feDropShadow dx=\'0\' dy=\'1.5\' stdDeviation=\'1.5\' flood-opacity=\'0.35\'/></filter></defs><ellipse cx=\'14\' cy=\'40\' rx=\'5\' ry=\'1.8\' fill=\'%23000\' opacity=\'.2\'/><line x1=\'14\' y1=\'22\' x2=\'14\' y2=\'39\' stroke=\'%23888\' stroke-width=\'2\' stroke-linecap=\'round\'/><circle cx=\'14\' cy=\'13\' r=\'12\' fill=\'url(%23rg)\' filter=\'url(%23ds)\'/><circle cx=\'11\' cy=\'10\' r=\'3.5\' fill=\'white\' opacity=\'.45\'/></svg>");background-size:contain;background-repeat:no-repeat;cursor:pointer;',
+          'you',
+          { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: mapsLink(userPosition.lat, userPosition.lon) },
+          userPosition.lon, userPosition.lat
+        );
+
+        // Local activity pulse
+        addUserMarker(
+          'width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,0.45);animation:pulse-cyan 2s infinite;',
+          'local activity',
+          { type: 'local', title: 'LOCAL ACTIVITY', detail: `Live local pulse near ${locLabel}`, level: 'local', source: 'Local search', link: `https://www.google.com/search?q=${encodeURIComponent(`events near ${locLabel}`)}` },
+          center.lon + 0.006, center.lat + 0.004
+        );
+      } catch {
+        // ignore user marker failures
+      }
+    })();
+    return () => { userMarkersRef.current.forEach(m => m.remove()); userMarkersRef.current = []; };
+  }, [userPosition.lat, userPosition.lon, locLabel, geoState]);
+
+  // API-dependent markers
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     (async () => {
@@ -313,22 +358,6 @@ export default function LiveMapBackdrop({ dark }) {
             new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(mapInstanceRef.current)
           );
         };
-
-        // User pin (Apple Maps drop pin style)
-        addMarker(
-          'width:14px;height:21px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 28 42\'><defs><radialGradient id=\'rg\' cx=\'40%25\' cy=\'35%25\' r=\'60%25\'><stop offset=\'0\' stop-color=\'%23ff6961\'/><stop offset=\'1\' stop-color=\'%23cc0000\'/></radialGradient><filter id=\'ds\'><feDropShadow dx=\'0\' dy=\'1.5\' stdDeviation=\'1.5\' flood-opacity=\'0.35\'/></filter></defs><ellipse cx=\'14\' cy=\'40\' rx=\'5\' ry=\'1.8\' fill=\'%23000\' opacity=\'.2\'/><line x1=\'14\' y1=\'22\' x2=\'14\' y2=\'39\' stroke=\'%23888\' stroke-width=\'2\' stroke-linecap=\'round\'/><circle cx=\'14\' cy=\'13\' r=\'12\' fill=\'url(%23rg)\' filter=\'url(%23ds)\'/><circle cx=\'11\' cy=\'10\' r=\'3.5\' fill=\'white\' opacity=\'.45\'/></svg>");background-size:contain;background-repeat:no-repeat;cursor:pointer;',
-          'you',
-          { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: mapsLink(userPosition.lat, userPosition.lon) },
-          userPosition.lon, userPosition.lat
-        );
-
-        // Local activity pulse
-        addMarker(
-          'width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,0.45);animation:pulse-cyan 2s infinite;',
-          'local activity',
-          { type: 'local', title: 'LOCAL ACTIVITY', detail: `Live local pulse near ${locLabel}`, level: 'local', source: 'Local search', link: `https://www.google.com/search?q=${encodeURIComponent(`events near ${locLabel}`)}` },
-          center.lon + 0.006, center.lat + 0.004
-        );
 
         payload.incidents.slice(0, 25).forEach((inc) => {
           if (inc.lon == null || inc.lat == null) return;
@@ -419,7 +448,7 @@ export default function LiveMapBackdrop({ dark }) {
         // ignore map marker failures
       }
     })();
-  }, [center.lat, center.lon, userPosition.lat, userPosition.lon, payload, locLabel, geoState]);
+  }, [center.lat, center.lon, payload]);
 
   return (
     <>

@@ -227,6 +227,7 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
   });
   const retryCountRef = useRef(0);
   const seededFromCache = useRef(false);
+  const cacheAttempted = useRef(false);
   const lastLiveSuccessRef = useRef(null);
 
   const fetchStocks = useCallback(async () => {
@@ -267,9 +268,9 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
             lastAttemptAt: now,
           };
         }
-        // Grace period: only show fallback after 3+ consecutive failures
+        // Don't downgrade to fallback until cache seed attempt has completed
         // Prevents FALLBACK flash during cold start / transient API issues
-        if (retryCountRef.current < 3) {
+        if (!cacheAttempted.current || retryCountRef.current < 3) {
           return { ...prev, lastAttemptAt: now };
         }
         return {
@@ -312,6 +313,8 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
         }
       } catch {
         // Cache miss is fine — live fetch follows immediately
+      } finally {
+        cacheAttempted.current = true;
       }
     };
 

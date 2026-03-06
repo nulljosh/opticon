@@ -58,6 +58,8 @@ export default function PricingPage({ dark, t, onClose }) {
         maxWidth: 900,
         width: '100%',
         overflowX: 'hidden',
+        overflowY: 'auto',
+        maxHeight: 'calc(100dvh - 40px)',
       }}>
         <div style={{
           display: 'flex',

@@ -9,6 +9,8 @@ export const darkTheme = {
   textSecondary: 'rgba(255,255,255,0.6)',
   textTertiary: 'rgba(255,255,255,0.4)',
   accent: '#0a84ff',
+  blue: '#0a84ff',
+  backgroundSecondary: 'rgba(255,255,255,0.08)',
   green: '#30D158',
   red: '#FF453A',
   yellow: '#FFD60A',
@@ -28,6 +30,8 @@ export const lightTheme = {
   textSecondary: 'rgba(60,60,67,0.6)', // Apple secondary label
   textTertiary: 'rgba(60,60,67,0.45)', // Apple tertiary — readable at small sizes
   accent: '#0a84ff',                    // Readout blue
+  blue: '#0a84ff',
+  backgroundSecondary: 'rgba(0,0,0,0.04)',
   green: '#34C759',
   red: '#FF3B30',
   yellow: '#FFCC00',

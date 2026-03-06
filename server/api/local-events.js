@@ -1,7 +1,7 @@
-// Local events endpoint: PredictHQ API for concerts, sports, community events
-// Single source that aggregates Eventbrite, Meetup, sports, concerts
+// Local events endpoint: PredictHQ (primary) + free fallbacks for universal coverage
+// Fallbacks: Eventbrite public search, OpenStreetMap event venues, news RSS
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+const CACHE_TTL_MS = 5 * 60 * 1000;
 const TIMEOUT_MS = 8000;
 const cache = new Map();
 
@@ -19,6 +19,20 @@ async function fetchWithTimeout(url, headers = {}, ms = TIMEOUT_MS) {
   }
 }
 
+async function fetchText(url, ms = TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
 function severityFromCategory(category) {
   const high = ['disasters', 'terror', 'severe-weather'];
   const medium = ['sports', 'concerts', 'festivals', 'conferences'];
@@ -27,10 +41,136 @@ function severityFromCategory(category) {
   return 'low';
 }
 
+// PredictHQ (primary, requires API key)
+async function fetchPredictHQ(lat, lon, radius, apiKey) {
+  const now = new Date().toISOString().split('T')[0];
+  const weekLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const url = `https://api.predicthq.com/v1/events/?within=${radius}@${lat},${lon}&active.gte=${now}&active.lte=${weekLater}&limit=50&sort=rank`;
+
+  const data = await fetchWithTimeout(url, {
+    Authorization: `Bearer ${apiKey}`,
+    Accept: 'application/json',
+  });
+
+  return (data.results || [])
+    .filter(e => e.location && e.location.length === 2)
+    .map(e => ({
+      lat: e.location[1], lng: e.location[0], type: 'local-event',
+      category: e.category || 'event', title: e.title || 'Local event',
+      severity: severityFromCategory(e.category),
+      timestamp: e.start || new Date().toISOString(),
+      attendees: e.phq_attendance || null, rank: e.rank || 0, source: 'predicthq',
+    }));
+}
+
+// Eventbrite public search (no API key needed for public events)
+async function fetchEventbrite(lat, lon) {
+  const events = [];
+  try {
+    const data = await fetchWithTimeout(
+      `https://www.eventbriteapi.com/v3/events/search/?location.latitude=${lat}&location.longitude=${lon}&location.within=25km&expand=venue&sort_by=date`,
+      { Accept: 'application/json' }
+    );
+    for (const e of (data.events || [])) {
+      const venue = e.venue;
+      if (!venue?.latitude || !venue?.longitude) continue;
+      events.push({
+        lat: parseFloat(venue.latitude), lng: parseFloat(venue.longitude),
+        type: 'local-event', category: 'community',
+        title: e.name?.text || 'Event',
+        severity: 'low',
+        timestamp: e.start?.utc || new Date().toISOString(),
+        source: 'eventbrite',
+      });
+    }
+  } catch { /* Eventbrite unavailable */ }
+  return events;
+}
+
+// OpenStreetMap Overpass: find event venues and community spaces
+async function fetchOSMVenues(lat, lon) {
+  const events = [];
+  const radius = 10000; // 10km
+  const query = `[out:json][timeout:10];(
+    node["amenity"="community_centre"](around:${radius},${lat},${lon});
+    node["amenity"="theatre"](around:${radius},${lat},${lon});
+    node["amenity"="arts_centre"](around:${radius},${lat},${lon});
+    node["leisure"="stadium"](around:${radius},${lat},${lon});
+    node["tourism"="museum"](around:${radius},${lat},${lon});
+  );out body 20;`;
+
+  try {
+    const data = await fetchWithTimeout(
+      `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`
+    );
+    for (const el of (data.elements || []).slice(0, 10)) {
+      const name = el.tags?.name;
+      if (!name) continue;
+      events.push({
+        lat: el.lat, lng: el.lon, type: 'local-event',
+        category: el.tags?.amenity || el.tags?.leisure || 'venue',
+        title: name,
+        severity: 'low',
+        timestamp: new Date().toISOString(),
+        source: 'osm_venues',
+      });
+    }
+  } catch { /* OSM unavailable */ }
+  return events;
+}
+
+// News RSS fallback: search for local events in news
+async function fetchEventNews(lat, lon, cityName) {
+  const events = [];
+  if (!cityName) return events;
+
+  const query = encodeURIComponent(`${cityName} event OR festival OR concert OR fair OR market`);
+  try {
+    const rss = await fetchText(
+      `https://news.google.com/rss/search?q=${query}&hl=en&gl=CA&ceid=CA:en`
+    );
+    const items = rss.match(/<item>[\s\S]*?<\/item>/g) || [];
+    for (const item of items.slice(0, 10)) {
+      const titleMatch = item.match(/<title><!\[CDATA\[(.*?)\]\]>/);
+      const dateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
+      const title = titleMatch ? titleMatch[1] : null;
+      if (!title) continue;
+
+      const lower = title.toLowerCase();
+      const isEvent = ['event', 'festival', 'concert', 'fair', 'market', 'parade',
+        'show', 'exhibit', 'celebration', 'fundraiser', 'tournament'].some(k => lower.includes(k));
+      if (!isEvent) continue;
+
+      events.push({
+        lat: lat + (Math.random() - 0.5) * 0.01,
+        lng: lon + (Math.random() - 0.5) * 0.01,
+        type: 'local-event', category: 'community',
+        title: title.length > 80 ? title.slice(0, 77) + '...' : title,
+        severity: 'low',
+        timestamp: dateMatch ? new Date(dateMatch[1]).toISOString() : new Date().toISOString(),
+        source: 'news_rss',
+      });
+    }
+  } catch { /* news unavailable */ }
+  return events;
+}
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const data = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`,
+      {}, 5000
+    );
+    return data.address?.city || data.address?.town || data.address?.village || data.address?.county || null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   const lat = parseFloat(req.query.lat);
   const lon = parseFloat(req.query.lon);
-  const radius = req.query.radius || '10km';
+  const radius = req.query.radius || '25km';
 
   if (isNaN(lat) || isNaN(lon)) {
     return res.status(400).json({ error: 'lat and lon query params required' });
@@ -45,40 +185,39 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.PREDICTHQ_API_KEY;
 
-  // If no PredictHQ key, return empty (non-critical data source)
-  if (!apiKey) {
-    return res.status(200).json({ events: [], note: 'PREDICTHQ_API_KEY not configured' });
-  }
-
   try {
-    const now = new Date().toISOString().split('T')[0];
-    const weekLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const fetchers = [];
 
-    const url = `https://api.predicthq.com/v1/events/?within=${radius}@${lat},${lon}&active.gte=${now}&active.lte=${weekLater}&limit=50&sort=rank`;
+    // PredictHQ if key available
+    if (apiKey) {
+      fetchers.push(fetchPredictHQ(lat, lon, radius, apiKey).catch(() => []));
+    }
 
-    const data = await fetchWithTimeout(url, {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: 'application/json',
+    // Free fallbacks (always run)
+    fetchers.push(fetchEventbrite(lat, lon).catch(() => []));
+    fetchers.push(fetchOSMVenues(lat, lon).catch(() => []));
+
+    // News fallback with city name
+    const cityName = await reverseGeocode(lat, lon);
+    if (cityName) {
+      fetchers.push(fetchEventNews(lat, lon, cityName).catch(() => []));
+    }
+
+    const results = await Promise.all(fetchers);
+    const events = results.flat();
+
+    // Deduplicate by title similarity
+    const seen = new Set();
+    const deduped = events.filter(e => {
+      const key = e.title.toLowerCase().slice(0, 30);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
 
-    const events = (data.results || [])
-      .filter(e => e.location && e.location.length === 2)
-      .map(e => ({
-        lat: e.location[1],
-        lng: e.location[0],
-        type: 'local-event',
-        category: e.category || 'event',
-        title: e.title || 'Local event',
-        severity: severityFromCategory(e.category),
-        timestamp: e.start || new Date().toISOString(),
-        attendees: e.phq_attendance || null,
-        rank: e.rank || 0,
-        source: 'predicthq',
-      }));
-
-    cache.set(cacheKey, { data: events, ts: Date.now() });
+    cache.set(cacheKey, { data: deduped, ts: Date.now() });
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
-    return res.status(200).json({ events });
+    return res.status(200).json({ events: deduped, sources: [...new Set(deduped.map(e => e.source))] });
   } catch (err) {
     console.error('Local events API error:', err);
     if (cached) {

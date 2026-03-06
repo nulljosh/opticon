@@ -6,12 +6,24 @@ let cache = null;
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  if (cache && Date.now() - cache.ts < CACHE_TTL) {
+  const lat = parseFloat(req.query.lat);
+  const lon = parseFloat(req.query.lon);
+
+  // Use location-specific cache key
+  const cacheKey = (!isNaN(lat) && !isNaN(lon)) ? `${lat.toFixed(1)},${lon.toFixed(1)}` : 'global';
+
+  if (cache && cache.key === cacheKey && Date.now() - cache.ts < CACHE_TTL) {
     res.setHeader('Cache-Control', 'public, max-age=300');
     return res.status(200).json(cache.data);
   }
 
-  const query = encodeURIComponent('conflict OR disaster OR crisis OR earthquake OR war');
+  // Make GDELT query location-aware when coordinates provided
+  let query;
+  if (!isNaN(lat) && !isNaN(lon)) {
+    query = encodeURIComponent(`sourcelat:${lat.toFixed(1)} sourcelong:${lon.toFixed(1)} conflict OR disaster OR crisis OR earthquake OR emergency OR incident`);
+  } else {
+    query = encodeURIComponent('conflict OR disaster OR crisis OR earthquake OR war');
+  }
   const url = `${GDELT_BASE}?query=${query}&mode=artlist&maxrecords=20&format=json&sort=datedesc`;
 
   const controller = new AbortController();
@@ -29,7 +41,7 @@ export default async function handler(req, res) {
       country: a.sourcecountry,
     }));
     const data = { events };
-    cache = { ts: Date.now(), data };
+    cache = { ts: Date.now(), data, key: cacheKey };
     res.setHeader('Cache-Control', 'public, max-age=300');
     return res.status(200).json(data);
   } catch (err) {

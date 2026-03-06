@@ -121,10 +121,10 @@ export function useSituation() {
 
   const fetchEvents = useCallback(async () => {
     try {
-      const data = await fetchWithTimeout(apiPath('/api/events'));
+      const data = await fetchWithTimeout(apiPath(`/api/events?lat=${activeCenter.lat}&lon=${activeCenter.lon}`));
       setEvents(data.events ?? []);
     } catch { /* non-critical */ }
-  }, []);
+  }, [activeCenter.lat, activeCenter.lon]);
 
   const fetchWeatherAlerts = useCallback(async () => {
     try {

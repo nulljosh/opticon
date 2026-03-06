@@ -115,6 +115,18 @@ function hasSource(data) {
   return Boolean(data?.source?.trim() && /^https?:\/\//.test(data?.link));
 }
 
+function createMarker(maplibregl, map, markersArray, css, title, data, lon, lat, onSelect) {
+  if (!hasSource(data)) return;
+  const el = document.createElement('div');
+  el.style.cssText = css;
+  if (title) el.title = title;
+  el.addEventListener('mouseenter', () => onSelect(data));
+  el.addEventListener('click', (e) => { e.stopPropagation(); onSelect(data); });
+  markersArray.push(
+    new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(map)
+  );
+}
+
 export default function LiveMapBackdrop({ dark }) {
   const storedGeo = loadStoredGeo();
   const initPos = storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER;
@@ -304,17 +316,8 @@ export default function LiveMapBackdrop({ dark }) {
         userMarkersRef.current.forEach(m => m.remove());
         userMarkersRef.current = [];
 
-        const addUserMarker = (css, title, data, lon, lat) => {
-          if (!hasSource(data)) return;
-          const el = document.createElement('div');
-          el.style.cssText = css;
-          if (title) el.title = title;
-          el.addEventListener('mouseenter', () => setSelected(data));
-          el.addEventListener('click', (e) => { e.stopPropagation(); setSelected(data); });
-          userMarkersRef.current.push(
-            new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(mapInstanceRef.current)
-          );
-        };
+        const addUserMarker = (css, title, data, lon, lat) =>
+          createMarker(maplibregl, mapInstanceRef.current, userMarkersRef.current, css, title, data, lon, lat, setSelected);
 
         // User pin (Apple Maps drop pin style)
         addUserMarker(
@@ -347,17 +350,8 @@ export default function LiveMapBackdrop({ dark }) {
         markersRef.current.forEach(m => m.remove());
         markersRef.current = [];
 
-        const addMarker = (css, title, data, lon, lat) => {
-          if (!hasSource(data)) return;
-          const el = document.createElement('div');
-          el.style.cssText = css;
-          if (title) el.title = title;
-          el.addEventListener('mouseenter', () => setSelected(data));
-          el.addEventListener('click', (e) => { e.stopPropagation(); setSelected(data); });
-          markersRef.current.push(
-            new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(mapInstanceRef.current)
-          );
-        };
+        const addMarker = (css, title, data, lon, lat) =>
+          createMarker(maplibregl, mapInstanceRef.current, markersRef.current, css, title, data, lon, lat, setSelected);
 
         payload.incidents.slice(0, 25).forEach((inc) => {
           if (inc.lon == null || inc.lat == null) return;

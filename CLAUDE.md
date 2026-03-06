@@ -76,35 +76,15 @@ Notes:
 - Fallback markers are intentionally injected when upstream feeds are sparse, to avoid empty-city states.
 - Predictions are shown only when a confident geographic anchor is inferred.
 
-## Local Development
+## Development
 
 ```bash
-npm install
-npm run dev
+npm install && npm run dev   # localhost:5173
+npm test -- --run && npm run build
+git push origin main         # triggers Vercel production deploy
 ```
 
-App URL: `http://localhost:5173`
-
-## Test + Build
-
-```bash
-npm test -- --run
-npm run build
-```
-
-## Deployment Workflow
-
-```bash
-git checkout main
-git pull
-npm test -- --run
-git add .
-git commit -m "..."
-git push origin main
-```
-
-Pushing `main` triggers production deploy on Vercel. Custom domain: `opticon.heyitsmejosh.com`.
-If Hobby deploys fail with function-count errors, ensure endpoint logic stays in `server/api/` and only `api/gateway.js` is deployed as the runtime function.
+Keep endpoint logic in `server/api/`; only `api/gateway.js` deploys as the runtime function.
 
 ## Billing / Upgrade
 
@@ -146,23 +126,13 @@ To activate paid tiers:
 
 ## Recent Fixes (2026-03-06)
 
-- Theme: added `blue` and `backgroundSecondary` to both themes (fixes invisible Pro button, Current Plan pill, footer)
-- PricingPage: vertical scroll + `maxHeight: calc(100dvh - 40px)` on inner container
-- Map NavigationControl moved to `bottom-left`
-- User pin + local pulse markers split into separate useEffect (renders immediately, not blocked by API)
-- useStocks: `cacheAttempted` ref prevents FALLBACK status until cache seed attempt completes
+- Theme: `blue` + `backgroundSecondary` added to both themes
+- PricingPage: vertical scroll fix
+- Map nav control moved to bottom-left
+- User markers split to separate useEffect (no API blocking)
+- useStocks: cache-seed guard on FALLBACK status
 
 ## Current Priorities
 
-- Keep simulator and monitor responsive
 - Keep API handlers small and test-covered
 - Deduplicate logic before adding new features
-- Preserve UI behavior unless explicitly requested
-
-## Roadmap
-- [ ] iOS companion app (opticon-ios)
-- [ ] Apple Pay integration via Stripe
-- [ ] Real-time WebSocket quotes
-- [ ] Portfolio analytics dashboard
-- [ ] Prediction market accuracy tracking
-- [ ] Price alert system with push notifications

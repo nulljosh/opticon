@@ -137,7 +137,7 @@ function SpendingChart({ spending, t }) {
   );
 }
 
-export default function FinancePanel({ dark, t, stocks, isAuthenticated, onClose }) {
+export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
   const [tab, setTab] = useState('portfolio');
   const [importError, setImportError] = useState(null);
   const fileInputRef = useRef(null);
@@ -212,11 +212,8 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated, onClose
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
       style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100,
-        background: dark ? 'rgba(0,0,0,0.85)' : 'rgba(242,242,247,0.95)',
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
         overflow: 'auto',
+        height: '100%',
         fontFamily: font,
       }}
     >

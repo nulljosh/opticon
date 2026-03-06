@@ -2,11 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const PROD_API = 'https://rise-production.vercel.app';
+const PROD_API = 'https://opticon.heyitsmejosh.com';
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: process.env.VERCEL ? '/' : (process.env.NODE_ENV === 'production' ? '/rise/' : '/'),
+  base: '/',
   plugins: [
     react(),
     VitePWA({

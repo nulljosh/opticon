@@ -866,6 +866,10 @@ const reset = useCallback(() => {
   // P&L positive color: stays readable in light mode as bg greens out
   const pnlGreen = dark ? t.green : bgProgress > 0.2 ? '#0c6b27' : t.green;
 
+  const handleMapReady = useCallback((map) => {
+    mapInstanceRef.current = map;
+  }, []);
+
   // Auth gate
   if (authLoading) {
     return (
@@ -902,10 +906,6 @@ const reset = useCallback(() => {
       />
     );
   }
-
-  const handleMapReady = useCallback((map) => {
-    mapInstanceRef.current = map;
-  }, []);
 
   const pmEdges = markets.filter(m => m.probability >= 0.85 || m.probability <= 0.15);
 

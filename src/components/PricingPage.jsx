@@ -57,6 +57,7 @@ export default function PricingPage({ dark, t, onClose }) {
       <div style={{
         maxWidth: 900,
         width: '100%',
+        overflowX: 'hidden',
       }}>
         <div style={{
           display: 'flex',
@@ -85,7 +86,7 @@ export default function PricingPage({ dark, t, onClose }) {
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))',
           gap: 20,
         }}>
           {/* Free Tier */}

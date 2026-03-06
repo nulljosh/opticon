@@ -38,3 +38,13 @@ create table if not exists alerts (
 
 create index if not exists idx_alerts_email on alerts(user_email);
 create index if not exists idx_alerts_symbol on alerts(symbol);
+
+-- Row Level Security
+alter table watchlists enable row level security;
+alter table portfolio_history enable row level security;
+alter table alerts enable row level security;
+
+-- All tables: API layer handles auth via session cookies, RLS permits all through anon key
+create policy "api_all_watchlists" on watchlists using (true) with check (true);
+create policy "api_all_portfolio" on portfolio_history using (true) with check (true);
+create policy "api_all_alerts" on alerts using (true) with check (true);

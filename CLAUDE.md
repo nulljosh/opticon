@@ -1,5 +1,9 @@
 # Opticon - Claude Guide
 
+## Design Rules
+
+- **Mobile-first CSS**: All layouts must be designed mobile-first. Start with single-column/stacked layouts, then use `@media (min-width: 768px)` to add desktop grid columns. Never start with desktop and add mobile breakpoints after.
+
 ## Deployment Targets
 
 - Production: `https://opticon.heyitsmejosh.com`

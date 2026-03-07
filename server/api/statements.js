@@ -1,6 +1,5 @@
 import path from 'path';
 import { readdir, readFile } from 'fs/promises';
-import pdfParse from 'pdf-parse';
 import { applyCors } from './_cors.js';
 
 const STATEMENTS_DIR = path.join(process.env.HOME || '', 'Documents/Misc/statement/');
@@ -43,6 +42,7 @@ export default async function handler(req, res) {
         try {
           const filePath = path.join(STATEMENTS_DIR, filename);
           const buffer = await readFile(filePath);
+          const { default: pdfParse } = await import('pdf-parse');
           const parsed = await pdfParse(buffer);
           const transactions = parseTransactions(parsed?.text || '');
 

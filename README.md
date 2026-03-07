@@ -10,6 +10,8 @@ Financial terminal and situation monitor. Live map, stock tickers, portfolio man
 
 </div>
 
+![version](https://img.shields.io/badge/version-v2.0.0-blue)
+
 ## Architecture
 
 ![Architecture](architecture.svg)

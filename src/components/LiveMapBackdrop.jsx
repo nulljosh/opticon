@@ -486,7 +486,7 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
               style={{
                 padding: '4px 10px', borderRadius: 100, fontSize: 10, fontWeight: 600,
                 border: 'none', cursor: 'pointer',
-                fontFamily: 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
                 background: enabled ? (dark ? '#FFFFFF' : '#111111') : (dark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.92)'),
                 color: enabled ? (dark ? '#000000' : '#ffffff') : (dark ? 'rgba(255,255,255,0.6)' : 'rgba(60,60,67,0.6)'),
                 backdropFilter: 'blur(12px)', textTransform: 'uppercase', letterSpacing: '0.05em',

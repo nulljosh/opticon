@@ -4,13 +4,13 @@
 
 <img src="icon.svg" alt="Opticon" width="120" />
 
-Financial terminal and situation monitor. Live map, stock tickers, portfolio management, and prediction markets in one dashboard.
+Financial terminal and situation monitor.
 
 [opticon.heyitsmejosh.com](https://opticon.heyitsmejosh.com)
 
 </div>
 
-![version](https://img.shields.io/badge/version-v2.0.0-blue)
+![version](https://img.shields.io/badge/version-v2.1.0-blue)
 
 ## Architecture
 
@@ -18,32 +18,21 @@ Financial terminal and situation monitor. Live map, stock tickers, portfolio man
 
 ## Stack
 
-- React 19 + Vite + MapLibre GL
-- Vercel serverless (`api/gateway.js`, 20+ routes)
-- Vercel KV (Upstash Redis) — auth, sessions, portfolio
-- FMP batch API + Yahoo Finance (chunked fallback)
-- Polymarket, GDELT, USGS, OSM, PredictHQ
-- GDELT (news, events)
-- Stripe
+- React 19, Vite, MapLibre GL
+- Vercel serverless gateway (25+ routes)
+- Vercel KV (auth, sessions, portfolio)
+- FMP + Yahoo Finance (stock data)
+- Polymarket, GDELT, USGS, CoinGecko
+- Stripe (billing)
 
 ## Dev
 
 ```bash
-npm install
-npm run dev
-npm test -- --run
-npm run build
+npm install && npm run dev   # localhost:5173
+npm test -- --run && npm run build
+git push origin main         # triggers Vercel deploy
 ```
 
-## Recent Changes
+## License
 
-- Fixed auth crash: KV calls now return proper JSON errors instead of 500/502
-- Updated demo account balances (Vacation, TFSA, Starbucks Card)
-
-## Roadmap
-
-- [ ] Apple Pay via Stripe
-- [ ] WebSocket real-time quotes
-- [ ] Portfolio analytics dashboard
-- [ ] Custom watchlist with alerts
-- [ ] Prediction market accuracy tracking
+MIT 2026, Joshua Trommel

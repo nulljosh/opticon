@@ -15,6 +15,8 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
+        navigateFallbackDenylist: [/^\/api\//],
+        cacheId: 'opticon',
       },
       manifest: {
         name: 'Opticon',

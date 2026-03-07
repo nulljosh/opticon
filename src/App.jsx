@@ -245,7 +245,7 @@ export default function App() {
 
   const { prices: liveAssets, lastUpdated } = useLivePrices(defaultAssets);
   const { markets, loading: pmLoading, error: pmError } = usePolymarket();
-  const { stocks, reliability: stocksReliability } = useStocks();
+  const { stocks, reliability: stocksReliability } = useStocks(undefined, { enabled: isAuthenticated });
 
   // Sync live stock prices into ref for simulator access
   useEffect(() => {

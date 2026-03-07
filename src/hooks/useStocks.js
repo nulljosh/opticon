@@ -215,7 +215,7 @@ const parseStockData = (raw) => {
   return Object.keys(stockMap).length > 0 ? stockMap : null;
 };
 
-export function useStocks(symbols = DEFAULT_SYMBOLS) {
+export function useStocks(symbols = DEFAULT_SYMBOLS, { enabled = true } = {}) {
   const [stocks, setStocks] = useState(FALLBACK_DATA);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -318,6 +318,7 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
       }
     };
 
+    if (!enabled) return;
     const init = async () => {
       await seedFromCache();
       await fetchStocks();
@@ -325,7 +326,7 @@ export function useStocks(symbols = DEFAULT_SYMBOLS) {
     init();
     const interval = setInterval(fetchStocks, 30000);
     return () => clearInterval(interval);
-  }, [fetchStocks]);
+  }, [fetchStocks, enabled]);
 
   return {
     stocks,

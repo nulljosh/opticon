@@ -20,6 +20,7 @@ import { useWeather } from './hooks/useWeather';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 // Trading Simulator Assets (US50 + Indices + Crypto)
 // Fallback prices - live prices auto-loaded from Yahoo Finance via useStocks
@@ -155,6 +156,7 @@ export default function App() {
   const resetToken = useMemo(() => new URLSearchParams(window.location.search).get('token'), []);
   const [authView, setAuthView] = useState(resetToken ? 'reset' : 'login'); // 'login' | 'register' | 'reset'
 
+  const { showHelp, setShowHelp, SHORTCUTS } = useKeyboardShortcuts();
   const [dark, setDark] = useState(true);
   const [activeTab, setActiveTab] = useState('simulator');
   const [mapLayers, setMapLayers] = useState({ flights: true, earthquakes: true, news: true, traffic: true, predictions: true, weather: true });
@@ -1392,6 +1394,21 @@ const reset = useCallback(() => {
         <span>&copy; 2026 Opticon</span>
         <a href="https://github.com/nulljosh/opticon/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" style={{ color: t.textTertiary, textDecoration: 'none', transition: 'color 0.15s' }} onMouseEnter={e => e.target.style.color = t.text} onMouseLeave={e => e.target.style.color = t.textTertiary}>Apache 2.0</a>
       </footer>
+
+      {showHelp && (
+        <div onClick={() => setShowHelp(false)} style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: t.cardBg || t.bg, border: `1px solid ${t.border}`, borderRadius: 12, padding: '24px 32px', minWidth: 280, fontFamily: font }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Keyboard Shortcuts</div>
+            {SHORTCUTS.map(s => (
+              <div key={s.key} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: t.textSecondary }}>
+                <kbd style={{ background: t.border, borderRadius: 4, padding: '2px 8px', fontSize: 12, fontFamily: 'monospace', color: t.text }}>{s.key}</kbd>
+                <span style={{ marginLeft: 16 }}>{s.description}</span>
+              </div>
+            ))}
+            <div style={{ marginTop: 16, fontSize: 11, color: t.textTertiary, textAlign: 'center' }}>Press ? or click outside to close</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

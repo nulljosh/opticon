@@ -163,6 +163,7 @@ export default function App() {
   const font = '-apple-system, BlinkMacSystemFont, system-ui, sans-serif';
   const [showPricing, setShowPricing] = useState(false);
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [isMobileNav, setIsMobileNav] = useState(() => window.matchMedia('(max-width: 768px)').matches);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -975,9 +976,32 @@ const reset = useCallback(() => {
       <style>{`
         .opticon-ticker, .opticon-header, .opticon-footer, .opticon-panel { display: none; }
         .opticon-mobile-nav { display: flex; }
+        .opticon-root {
+          grid-template-rows: 1fr !important;
+          grid-template-columns: 1fr !important;
+        }
+        .opticon-map { grid-row: 1; grid-column: 1; }
+        .opticon-mobile-panel {
+          display: none;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          max-height: 60vh;
+          overflow-y: auto;
+          border-radius: 16px 16px 0 0;
+          z-index: 10;
+          transform: translateY(100%);
+          transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .opticon-mobile-panel.open {
+          display: block;
+          transform: translateY(0);
+        }
         @media (min-width: 768px) {
           .opticon-ticker, .opticon-header, .opticon-footer { display: flex; }
           .opticon-mobile-nav { display: none; }
+          .opticon-mobile-panel { display: none !important; }
           .opticon-root {
             grid-template-rows: auto auto 1fr auto !important;
             grid-template-columns: 1fr 420px !important;
@@ -993,7 +1017,7 @@ const reset = useCallback(() => {
       </div>
 
       {/* Header */}
-      <header className="opticon-header" style={{ gridColumn: '1 / -1', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
+      <header className="opticon-header" style={{ gridColumn: '1 / -1', padding: '10px 16px', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: t.text, fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>opticon</span>
           <span style={{ width: 1, height: 14, background: t.border, marginLeft: 8 }} />
@@ -1125,7 +1149,7 @@ const reset = useCallback(() => {
                 {TAB_PILLS.map(pill => (
                   <button
                     key={pill.key}
-                    onClick={() => { setActiveTab(pill.key); setMobileTabsOpen(false); }}
+                    onClick={() => { setActiveTab(pill.key); setMobilePanelOpen(true); setMobileTabsOpen(false); }}
                     style={{
                       padding: '6px 14px', borderRadius: 8, fontSize: 10, fontWeight: 600,
                       fontFamily: font, cursor: 'pointer', border: 'none', textAlign: 'left',
@@ -1274,11 +1298,97 @@ const reset = useCallback(() => {
         )}
       </div>
 
+      {/* Mobile bottom sheet */}
+      {isMobileNav && (
+        <div
+          className={`opticon-mobile-panel ${mobilePanelOpen ? 'open' : ''}`}
+          style={{
+            background: t.bg,
+            borderTop: `1px solid ${t.border}`,
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div
+            onClick={() => setMobilePanelOpen(false)}
+            style={{ padding: '8px 0', textAlign: 'center', cursor: 'pointer' }}
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: t.border, margin: '0 auto' }} />
+          </div>
+          {activeTab === 'simulator' && (
+            <div style={{ padding: 16 }}>
+              {busted ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1 }}>BUSTED</div>
+                  <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 8 }}>
+                    {formatNumber(balance)} -- {realWorldTime(tick)} of trading -- {exits.length} trades
+                  </div>
+                </div>
+              ) : won ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.green, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1 }}>
+                    {targetTrillion ? '$1T' : '$1B'}
+                  </div>
+                  <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 8 }}>
+                    {exits.length} trades -- {winRate.toFixed(0)}% wins -- {formatTime(elapsedTime)}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1, textShadow: heroTextShadow }}>
+                    {formatNumber(equity)}
+                  </div>
+                  <div style={{ fontSize: 13, marginTop: 8 }}>
+                    <span style={{ color: pnl >= 0 ? pnlGreen : t.red }}>
+                      {pnl >= 0 ? '+' : ''}{formatNumber(Math.abs(pnl)).replace('$', '')}
+                    </span>
+                    {position
+                      ? <span style={{ color: t.textSecondary, fontSize: 12 }}> -- in {position.sym}</span>
+                      : <span style={{ color: t.textTertiary, fontSize: 12 }}> -- {winRate.toFixed(0)}% WR -- {exits.length} trades</span>
+                    }
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
+                <button
+                  onClick={() => setRunning(!running)}
+                  disabled={busted || won}
+                  style={{ padding: '12px 32px', borderRadius: 100, border: 'none', fontSize: 14, fontWeight: 600, fontFamily: font, background: (busted || won) ? t.border : running ? t.red : t.green, color: '#fff', cursor: (busted || won) ? 'default' : 'pointer', minWidth: 120 }}
+                >
+                  {busted ? 'Busted' : won ? 'Won!' : running ? 'Stop' : 'Start'}
+                </button>
+                <button
+                  onClick={reset}
+                  style={{ padding: '12px 18px', borderRadius: 100, border: `1px solid ${t.border}`, background: 'transparent', color: t.textSecondary, fontFamily: font, fontSize: 18, cursor: 'pointer' }}
+                >
+                  ↺
+                </button>
+              </div>
+            </div>
+          )}
+          {activeTab === 'portfolio' && (
+            <FinancePanel dark={dark} t={t} stocks={stocks} isAuthenticated={isAuthenticated} />
+          )}
+          {activeTab === 'situation' && (
+            <SituationMonitor
+              dark={dark} t={t} font={font}
+              sim={simData}
+              pmEdges={pmEdges}
+              lastPmBetMap={lastPmBetRef.current}
+              trades={trades}
+              pmExits={pmExits}
+              mapFlyTo={(params) => mapInstanceRef.current?.flyTo(params)}
+              mapLayers={mapLayers}
+              setMapLayers={setMapLayers}
+            />
+          )}
+        </div>
+      )}
+
       {/* Pricing Modal */}
       {showPricing && <PricingPage dark={dark} t={t} onClose={() => setShowPricing(false)} subscription={subscription} />}
 
       {/* Footer */}
-      <footer className="opticon-footer" style={{ gridColumn: '1 / -1', padding: '12px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textSecondary }}>
+      <footer className="opticon-footer" style={{ gridColumn: '1 / -1', padding: '12px 16px', justifyContent: 'center', alignItems: 'center', gap: 16, borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textSecondary }}>
         <span>&copy; 2026 Opticon</span>
         <a href="https://github.com/nulljosh/opticon/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" style={{ color: t.textTertiary, textDecoration: 'none', transition: 'color 0.15s' }} onMouseEnter={e => e.target.style.color = t.text} onMouseLeave={e => e.target.style.color = t.textTertiary}>Apache 2.0</a>
       </footer>

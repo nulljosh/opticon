@@ -112,3 +112,9 @@ Embed OpenPlanter's recursive investigation engine into Opticon as a "Follow the
 - Support Ollama for self-hosted users who want to avoid API costs
 - Credential flow: reuse Opticon's existing auth, pass model access through to OpenPlanter engine
 
+
+## Quick Commands
+- `./scripts/simplify.sh`
+- `./scripts/monetize.sh . --write`
+- `./scripts/audit.sh .`
+- `./scripts/ship.sh .`

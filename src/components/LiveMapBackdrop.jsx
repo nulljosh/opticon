@@ -467,7 +467,7 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
         // ignore map marker failures
       }
     })();
-  }, [center.lat, center.lon, payload, mapLayers]);
+  }, [center.lat, center.lon, payload, mapLayers, mapLoaded]);
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>

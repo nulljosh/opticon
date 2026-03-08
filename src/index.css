@@ -32,3 +32,19 @@ body {
   background: rgba(120, 120, 128, 0.35); /* visible in both dark and light mode */
   border-radius: 3px;
 }
+
+/* Mobile: ensure horizontal scrollbar is visible on scrollable containers */
+@media (max-width: 767px) {
+  .opticon-mobile-panel {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 120, 128, 0.5) transparent;
+  }
+  .opticon-mobile-panel::-webkit-scrollbar {
+    height: 4px;
+    display: block !important;
+  }
+  .opticon-mobile-panel::-webkit-scrollbar-thumb {
+    background: rgba(120, 120, 128, 0.5);
+    border-radius: 2px;
+  }
+}

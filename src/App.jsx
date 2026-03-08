@@ -166,6 +166,13 @@ export default function App() {
   const [showPricing, setShowPricing] = useState(false);
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  // Escape key dismisses mobile panel
+  useEffect(() => {
+    if (!mobilePanelOpen) return;
+    const handler = (e) => { if (e.key === 'Escape') setMobilePanelOpen(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [mobilePanelOpen]);
   const [isMobileNav, setIsMobileNav] = useState(() => window.matchMedia('(max-width: 768px)').matches);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -1302,6 +1309,18 @@ const reset = useCallback(() => {
         )}
       </div>
 
+      {/* Mobile bottom sheet backdrop */}
+      {isMobileNav && mobilePanelOpen && (
+        <div
+          onClick={() => setMobilePanelOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 9,
+          }}
+        />
+      )}
       {/* Mobile bottom sheet */}
       {isMobileNav && (
         <div
@@ -1313,10 +1332,25 @@ const reset = useCallback(() => {
           }}
         >
           <div
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 12px', position: 'relative', cursor: 'pointer' }}
             onClick={() => setMobilePanelOpen(false)}
-            style={{ padding: '8px 0', textAlign: 'center', cursor: 'pointer' }}
           >
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: t.border, margin: '0 auto' }} />
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: t.border }} />
+            <button
+              onClick={(e) => { e.stopPropagation(); setMobilePanelOpen(false); }}
+              style={{
+                position: 'absolute',
+                right: 12,
+                top: 4,
+                background: 'transparent',
+                border: 'none',
+                color: t.textSecondary,
+                fontSize: 22,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                lineHeight: 1,
+              }}
+            >{'\u00d7'}</button>
           </div>
           {activeTab === 'simulator' && (
             <div style={{ padding: 16 }}>

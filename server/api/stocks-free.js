@@ -1,6 +1,5 @@
 // Stock API: FMP batch quotes (primary) + Yahoo Finance chart (fallback)
 // FMP handles up to 100 symbols in one batch call
-import { kv } from '@vercel/kv';
 import {
   parseSymbols,
   setStockResponseHeaders,
@@ -9,6 +8,20 @@ import {
   getFmpApiKey,
   isMarketHours,
 } from './stocks-shared.js';
+
+let _kv = null;
+async function getKv() {
+  if (!_kv) {
+    try {
+      const mod = await import('@vercel/kv');
+      _kv = mod.kv;
+    } catch (err) {
+      console.warn('Failed to load @vercel/kv:', err.message);
+      _kv = null;
+    }
+  }
+  return _kv;
+}
 
 const YAHOO_URLS = [
   'https://query1.finance.yahoo.com',
@@ -60,8 +73,10 @@ function getKvKeys(symbolList) {
 
 async function getKvCached(key) {
   if (!ENABLE_CACHE) return null;
+  const kvClient = await getKv();
+  if (!kvClient) return null;
   try {
-    return await kv.get(key);
+    return await kvClient.get(key);
   } catch (err) {
     console.warn(`KV get failed for ${key}: ${err.message}`);
     return null;
@@ -70,8 +85,10 @@ async function getKvCached(key) {
 
 async function setKvCached(key, data, ttlSec) {
   if (!ENABLE_CACHE) return;
+  const kvClient = await getKv();
+  if (!kvClient) return;
   try {
-    await kv.set(key, data, { ex: ttlSec });
+    await kvClient.set(key, data, { ex: ttlSec });
   } catch (err) {
     console.warn(`KV set failed for ${key}: ${err.message}`);
   }

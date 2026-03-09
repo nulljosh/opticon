@@ -1,6 +1,19 @@
 import { put } from '@vercel/blob';
-import { kv } from '@vercel/kv';
 import { YAHOO_HEADERS, FMP_BASE, getFmpApiKey } from './stocks-shared.js';
+
+let _kv = null;
+async function getKv() {
+  if (!_kv) {
+    try {
+      const mod = await import('@vercel/kv');
+      _kv = mod.kv;
+    } catch (err) {
+      console.warn('Failed to load @vercel/kv:', err.message);
+      _kv = null;
+    }
+  }
+  return _kv;
+}
 
 const BLOB_FILENAME = 'rise-cache/results.json';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
@@ -232,6 +245,8 @@ export default async function handler(req, res) {
     const KV_STALE_TTL_SEC = 1800;
     if (stocks.length > 0) {
       try {
+        const kvClient = await getKv();
+        if (!kvClient) throw new Error('@vercel/kv not available');
         const hash = ALL_SYMBOLS.join(',').replace(/[^A-Za-z0-9]/g, '').toLowerCase().slice(0, 16) || 'default';
         const kvFreshKey = `stocks:free:v1:${hash}`;
         const kvStaleKey = `stocks:free:v1:stale:${hash}`;
@@ -245,8 +260,8 @@ export default async function handler(req, res) {
           source: 'cron',
         }));
         await Promise.all([
-          kv.set(kvFreshKey, kvStocks, { ex: KV_CRON_TTL_SEC }),
-          kv.set(kvStaleKey, kvStocks, { ex: KV_STALE_TTL_SEC }),
+          kvClient.set(kvFreshKey, kvStocks, { ex: KV_CRON_TTL_SEC }),
+          kvClient.set(kvStaleKey, kvStocks, { ex: KV_STALE_TTL_SEC }),
         ]);
         console.log(`[CRON] KV updated: ${kvFreshKey} (${kvStocks.length} symbols, ${KV_CRON_TTL_SEC}s TTL)`);
       } catch (kvErr) {

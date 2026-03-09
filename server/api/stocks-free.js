@@ -1,6 +1,14 @@
 // Stock API: FMP batch quotes (primary) + Yahoo Finance chart (fallback)
 // FMP handles up to 100 symbols in one batch call
-import { parseSymbols, setStockResponseHeaders, YAHOO_HEADERS, FMP_BASE, getFmpApiKey } from './stocks-shared.js';
+import { kv } from '@vercel/kv';
+import {
+  parseSymbols,
+  setStockResponseHeaders,
+  YAHOO_HEADERS,
+  FMP_BASE,
+  getFmpApiKey,
+  isMarketHours,
+} from './stocks-shared.js';
 
 const YAHOO_URLS = [
   'https://query1.finance.yahoo.com',
@@ -10,8 +18,10 @@ const REQUEST_TIMEOUT_MS = 8000;
 const MAX_ATTEMPTS_PER_PROVIDER = 2;
 const RETRY_BASE_MS = 200;
 const ENABLE_CACHE = process.env.NODE_ENV !== 'test';
-const CACHE_TTL_MS = 90000; // 90s to stay within FMP 250/day free tier
-const STALE_IF_ERROR_MS = 5 * 60 * 1000;
+const L1_CACHE_TTL_MS = 15000;
+const KV_MARKET_TTL_SEC = 300;
+const KV_OFF_HOURS_TTL_SEC = 300;
+const KV_STALE_IF_ERROR_TTL_SEC = 1800;
 const cache = new Map();
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -33,6 +43,38 @@ function getCached(cacheKey, maxAgeMs) {
   if (!cached) return null;
   if ((Date.now() - cached.ts) > maxAgeMs) return null;
   return cached.data;
+}
+
+function getSymbolHash(symbolList) {
+  const joined = symbolList.join(',');
+  return joined.replace(/[^A-Za-z0-9]/g, '').toLowerCase().slice(0, 16) || 'default';
+}
+
+function getKvKeys(symbolList) {
+  const hash = getSymbolHash(symbolList);
+  return {
+    fresh: `stocks:free:v1:${hash}`,
+    stale: `stocks:free:v1:stale:${hash}`,
+  };
+}
+
+async function getKvCached(key) {
+  if (!ENABLE_CACHE) return null;
+  try {
+    return await kv.get(key);
+  } catch (err) {
+    console.warn(`KV get failed for ${key}: ${err.message}`);
+    return null;
+  }
+}
+
+async function setKvCached(key, data, ttlSec) {
+  if (!ENABLE_CACHE) return;
+  try {
+    await kv.set(key, data, { ex: ttlSec });
+  } catch (err) {
+    console.warn(`KV set failed for ${key}: ${err.message}`);
+  }
 }
 
 // FMP batch quote: single call for all symbols
@@ -149,12 +191,27 @@ export default async function handler(req, res) {
   }
   const { symbolList } = parsed;
   const cacheKey = symbolList.join(',');
+  const kvKeys = getKvKeys(symbolList);
+  const inMarketHours = isMarketHours();
+  const kvFreshTtlSec = inMarketHours ? KV_MARKET_TTL_SEC : KV_OFF_HOURS_TTL_SEC;
 
-  const freshCached = getCached(cacheKey, CACHE_TTL_MS);
+  const freshCached = getCached(cacheKey, L1_CACHE_TTL_MS);
   if (freshCached) {
     setStockResponseHeaders(req, res);
     res.setHeader('X-Opticon-Data-Status', 'cache');
+    res.setHeader('X-Opticon-Cache-Level', 'L1');
     return res.status(200).json(freshCached);
+  }
+
+  const kvCached = await getKvCached(kvKeys.fresh);
+  if (kvCached) {
+    if (ENABLE_CACHE) {
+      cache.set(cacheKey, { ts: Date.now(), data: kvCached });
+    }
+    setStockResponseHeaders(req, res);
+    res.setHeader('X-Opticon-Data-Status', 'cache');
+    res.setHeader('X-Opticon-Cache-Level', 'L2');
+    return res.status(200).json(kvCached);
   }
 
   try {
@@ -177,10 +234,11 @@ export default async function handler(req, res) {
     }
 
     if (!stocks || stocks.length === 0) {
-      const staleCached = getCached(cacheKey, STALE_IF_ERROR_MS);
+      const staleCached = await getKvCached(kvKeys.stale);
       if (staleCached) {
         setStockResponseHeaders(req, res);
         res.setHeader('X-Opticon-Data-Status', 'stale');
+        res.setHeader('X-Opticon-Cache-Level', 'L2');
         return res.status(200).json(staleCached);
       }
       return res.status(500).json({ error: 'No valid stock data received' });
@@ -189,6 +247,10 @@ export default async function handler(req, res) {
     if (ENABLE_CACHE) {
       cache.set(cacheKey, { ts: Date.now(), data: stocks });
     }
+    await Promise.all([
+      setKvCached(kvKeys.fresh, stocks, kvFreshTtlSec),
+      setKvCached(kvKeys.stale, stocks, KV_STALE_IF_ERROR_TTL_SEC),
+    ]);
 
     setStockResponseHeaders(req, res);
     res.setHeader('X-Opticon-Data-Status', 'live');
@@ -196,10 +258,11 @@ export default async function handler(req, res) {
     return res.status(200).json(stocks);
   } catch (err) {
     console.error('stocks-free handler error:', err);
-    const staleCached = getCached(cacheKey, STALE_IF_ERROR_MS);
+    const staleCached = await getKvCached(kvKeys.stale);
     if (staleCached) {
       setStockResponseHeaders(req, res);
       res.setHeader('X-Opticon-Data-Status', 'stale');
+      res.setHeader('X-Opticon-Cache-Level', 'L2');
       return res.status(200).json(staleCached);
     }
     return res.status(500).json({ error: 'Failed to fetch stock data', details: err.message });

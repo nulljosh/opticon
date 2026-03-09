@@ -1,4 +1,5 @@
 import { put } from '@vercel/blob';
+import { kv } from '@vercel/kv';
 import { YAHOO_HEADERS, FMP_BASE, getFmpApiKey } from './stocks-shared.js';
 
 const BLOB_FILENAME = 'rise-cache/results.json';
@@ -223,6 +224,35 @@ export default async function handler(req, res) {
       addRandomSuffix: false,
     });
     const uploadTime = Date.now() - uploadStart;
+
+    // Write stocks to KV (same keys stocks-free reads from)
+    // This means stocks-free almost always serves cron-populated KV data
+    // instead of burning FMP quota on live API calls
+    const KV_CRON_TTL_SEC = 360; // 6 min (covers 5-min cron gap + buffer)
+    const KV_STALE_TTL_SEC = 1800;
+    if (stocks.length > 0) {
+      try {
+        const hash = ALL_SYMBOLS.join(',').replace(/[^A-Za-z0-9]/g, '').toLowerCase().slice(0, 16) || 'default';
+        const kvFreshKey = `stocks:free:v1:${hash}`;
+        const kvStaleKey = `stocks:free:v1:stale:${hash}`;
+        // Format stock data to match what stocks-free.js stores
+        const kvStocks = stocks.map(s => ({
+          symbol: s.symbol,
+          price: s.price,
+          change: s.change ?? 0,
+          changePercent: s.changePercent ?? 0,
+          volume: s.volume ?? 0,
+          source: 'cron',
+        }));
+        await Promise.all([
+          kv.set(kvFreshKey, kvStocks, { ex: KV_CRON_TTL_SEC }),
+          kv.set(kvStaleKey, kvStocks, { ex: KV_STALE_TTL_SEC }),
+        ]);
+        console.log(`[CRON] KV updated: ${kvFreshKey} (${kvStocks.length} symbols, ${KV_CRON_TTL_SEC}s TTL)`);
+      } catch (kvErr) {
+        console.warn(`[CRON] KV write failed: ${kvErr.message}`);
+      }
+    }
 
     const totalTime = Date.now() - startTime;
     console.log(`[CRON] Blob uploaded in ${uploadTime}ms (total: ${totalTime}ms)`);

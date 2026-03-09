@@ -43,7 +43,7 @@ const fetchWithRetry = async (url, maxRetries = 3, baseDelay = 1000) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -324,7 +324,7 @@ export function useStocks(symbols = DEFAULT_SYMBOLS, { enabled = true } = {}) {
       await fetchStocks();
     };
     init();
-    const interval = setInterval(fetchStocks, 30000);
+    const interval = setInterval(fetchStocks, 60000);
     return () => clearInterval(interval);
   }, [fetchStocks, enabled]);
 

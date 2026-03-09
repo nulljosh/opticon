@@ -1,9 +1,14 @@
 import { applyCors } from './_cors.js';
 import { list } from '@vercel/blob';
+import { isMarketHours } from './stocks-shared.js';
 
 export default async function handler(req, res) {
   applyCors(req, res);
+  if (isMarketHours()) {
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=120');
+  } else {
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+  }
 
   try {
     // Find the blob by prefix (most recent cache)

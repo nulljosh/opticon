@@ -9,6 +9,7 @@ import history from '../server/api/history.js';
 import incidents from '../server/api/incidents.js';
 import latest from '../server/api/latest.js';
 import localEvents from '../server/api/local-events.js';
+import macro from '../server/api/macro.js';
 import markets from '../server/api/markets.js';
 import news from '../server/api/news.js';
 import prices from '../server/api/prices.js';
@@ -44,6 +45,7 @@ const ROUTES = {
   incidents,
   latest,
   'local-events': localEvents,
+  macro,
   markets,
   news,
   prices,

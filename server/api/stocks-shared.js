@@ -34,5 +34,32 @@ export function parseSymbols(raw, { max = 50, validate = false, tooManyMessage }
 
 export function setStockResponseHeaders(req, res) {
   applyCors(req, res);
+  if (isMarketHours()) {
+    res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=30');
+    return;
+  }
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+}
+
+export function isMarketHours(now = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(now);
+  const weekday = parts.find(p => p.type === 'weekday')?.value;
+  const hour = Number(parts.find(p => p.type === 'hour')?.value);
+  const minute = Number(parts.find(p => p.type === 'minute')?.value);
+
+  if (!weekday || Number.isNaN(hour) || Number.isNaN(minute)) return false;
+  if (weekday === 'Sat' || weekday === 'Sun') return false;
+
+  const totalMinutes = (hour * 60) + minute;
+  const openMinutes = (9 * 60) + 30;
+  const closeMinutes = 16 * 60;
+  return totalMinutes >= openMinutes && totalMinutes < closeMinutes;
 }

@@ -30,6 +30,9 @@ Vercel Hobby also rejects the intraday `*/5 13-20 * * 1-5` cron schedule. On the
 
 Primary migration target: Cloudflare Pages + Workers.
 
+There is now a starter Cloudflare worker scaffold in this repo. See [docs/cloudflare-migration.md](/Users/joshua/Documents/Code/opticon/docs/cloudflare-migration.md) for the step-by-step move.
+For the copyable version to use in other repos, see [docs/cloudflare-starter.md](/Users/joshua/Documents/Code/opticon/docs/cloudflare-starter.md).
+
 Required migration work:
 
 - move the Vite frontend to Pages

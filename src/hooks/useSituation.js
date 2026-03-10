@@ -15,9 +15,7 @@ const SITUATION_REFRESH = 5 * 60_000;
 const LAST_GEO_KEY = 'opticon_last_geo';
 const FRESH_GEO_MS = 30 * 60 * 1000;
 const FRESH_IP_MS = 5 * 60 * 1000;
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? 'https://opticon-production.vercel.app' : '');
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 function apiPath(path) {
   return `${API_BASE}${path}`;

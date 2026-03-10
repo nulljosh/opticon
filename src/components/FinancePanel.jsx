@@ -1,50 +1,166 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Card } from './ui';
 import { usePortfolio } from '../hooks/usePortfolio';
 import { formatCurrency } from '../utils/formatting';
+import { normalizeSpendingMonths } from '../utils/financeData';
+import { buildSpendingForecast } from '../utils/spendingForecast';
 
 const TABS = ['portfolio', 'budget', 'debt', 'goals', 'spending'];
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const [, base64 = ''] = result.split(',');
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function parseNumberInput(value) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function clonePortfolioData(data) {
+  return JSON.parse(JSON.stringify(data));
+}
+
+function monthLabelShort(value) {
+  return value.replace(' 20', " '");
+}
+
+function compactCurrency(value) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+    notation: value >= 1000 ? 'compact' : 'standard',
+  }).format(value);
+}
+
+function ActionMenu({ t, font, actions }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (ref.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          borderRadius: 999,
+          border: `1px solid ${t.border}`,
+          background: t.glass,
+          color: t.text,
+          padding: '6px 10px',
+          fontSize: 11,
+          fontWeight: 700,
+          cursor: 'pointer',
+          fontFamily: font,
+          boxShadow: 'none',
+        }}
+      >
+        More
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            right: 0,
+            minWidth: 140,
+            background: t.bg,
+            border: `1px solid ${t.border}`,
+            borderRadius: 14,
+            padding: 6,
+            zIndex: 20,
+          }}
+        >
+          {actions.map((action) => (
+            <button
+              key={action.label}
+              onClick={() => {
+                setOpen(false);
+                action.onClick();
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                border: 'none',
+                background: 'transparent',
+                color: action.danger ? t.red : t.text,
+                padding: '9px 10px',
+                textAlign: 'left',
+                borderRadius: 10,
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: font,
+                boxShadow: 'none',
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PieChart({ data, size = 160, t }) {
   if (!data || data.length === 0) return null;
-  const total = data.reduce((s, d) => s + d.value, 0);
+  const total = data.reduce((sum, entry) => sum + entry.value, 0);
   if (total <= 0) return null;
 
   const colors = ['#0071e3', '#30D158', '#FF453A', '#FF9F0A', '#BF5AF2', '#64D2FF', '#FF375F', '#FFD60A'];
   let angle = 0;
 
-  const slices = data.map((d, i) => {
-    const pct = d.value / total;
+  const slices = data.map((entry, index) => {
+    const pct = entry.value / total;
     const startAngle = angle;
     angle += pct * 360;
     const endAngle = angle;
     const largeArc = pct > 0.5 ? 1 : 0;
-    const r = size / 2 - 4;
+    const radius = size / 2 - 4;
     const cx = size / 2;
     const cy = size / 2;
     const startRad = (startAngle - 90) * Math.PI / 180;
     const endRad = (endAngle - 90) * Math.PI / 180;
-    const x1 = cx + r * Math.cos(startRad);
-    const y1 = cy + r * Math.sin(startRad);
-    const x2 = cx + r * Math.cos(endRad);
-    const y2 = cy + r * Math.sin(endRad);
+    const x1 = cx + radius * Math.cos(startRad);
+    const y1 = cy + radius * Math.sin(startRad);
+    const x2 = cx + radius * Math.cos(endRad);
+    const y2 = cy + radius * Math.sin(endRad);
 
     if (pct >= 0.999) {
-      return <circle key={i} cx={cx} cy={cy} r={r} fill={colors[i % colors.length]} />;
+      return <circle key={entry.label} cx={cx} cy={cy} r={radius} fill={colors[index % colors.length]} />;
     }
 
     return (
       <path
-        key={i}
-        d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`}
-        fill={colors[i % colors.length]}
+        key={entry.label}
+        d={`M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`}
+        fill={colors[index % colors.length]}
         opacity={0.85}
       />
     );
   });
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {slices}
         <circle cx={size / 2} cy={size / 2} r={size / 2 - 30} fill={t.bg} />
@@ -55,12 +171,12 @@ function PieChart({ data, size = 160, t }) {
           TOTAL
         </text>
       </svg>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-            <div style={{ width: 8, height: 8, borderRadius: 2, background: colors[i % colors.length] }} />
-            <span style={{ color: t.textSecondary }}>{d.label}</span>
-            <span style={{ color: t.text, fontWeight: 600, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(d.value)}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
+        {data.map((entry, index) => (
+          <div key={entry.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 2, background: colors[index % colors.length] }} />
+            <span style={{ color: t.textSecondary }}>{entry.label}</span>
+            <span style={{ color: t.text, fontWeight: 600, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(entry.value)}</span>
           </div>
         ))}
       </div>
@@ -78,51 +194,191 @@ function ProgressBar({ value, max, color, t }) {
 }
 
 function SpendingChart({ spending, t }) {
+  const [activePoint, setActivePoint] = useState(null);
+
   if (!spending || spending.length === 0) return null;
-  const maxTotal = Math.max(...spending.map(s => s.total));
-  const W = 320, H = 140;
-  const padding = { left: 40, right: 20, top: 20, bottom: 30 };
+
+  const actual = spending.map((entry) => ({
+    ...entry,
+    total: Math.max(0, Number.isFinite(entry?.total) ? entry.total : 0),
+  }));
+  const forecast = buildSpendingForecast(actual);
+  const projected = forecast?.points || [];
+  const maxProjected = projected.length > 0 ? Math.max(...projected.map((point) => point.high)) : 0;
+  const maxTotal = Math.max(1, ...actual.map((point) => point.total), maxProjected);
+  const W = 336;
+  const H = 170;
+  const padding = { left: 44, right: 40, top: 32, bottom: 44 };
   const chartW = W - padding.left - padding.right;
   const chartH = H - padding.top - padding.bottom;
+  const chartBottom = padding.top + chartH;
+  const totalPoints = actual.length + projected.length;
 
-  const points = spending.map((s, i) => {
-    const x = padding.left + (i / Math.max(1, spending.length - 1)) * chartW;
-    const y = padding.top + (1 - s.total / maxTotal) * chartH;
-    return { x, y, ...s };
-  });
+  const xForIndex = (index) => padding.left + (index / Math.max(1, totalPoints - 1)) * chartW;
+  const yForValue = (value) => padding.top + (1 - Math.min(maxTotal, Math.max(0, value)) / maxTotal) * chartH;
 
-  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const areaD = pathD + ` L ${points[points.length - 1].x} ${padding.top + chartH} L ${points[0].x} ${padding.top + chartH} Z`;
+  const actualPoints = actual.map((point, index) => ({
+    ...point,
+    kind: 'actual',
+    index,
+    x: xForIndex(index),
+    y: yForValue(point.total),
+  }));
+  const forecastPoints = projected.map((point, index) => ({
+    ...point,
+    kind: 'forecast',
+    index,
+    x: xForIndex(actual.length + index),
+    y: yForValue(point.median),
+    lowY: yForValue(point.low),
+    highY: yForValue(point.high),
+  }));
 
-  const trendPct = spending.length >= 2
-    ? ((spending[spending.length - 1].total - spending[0].total) / spending[0].total * 100).toFixed(0)
-    : 0;
+  const actualPath = actualPoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const actualArea = `${actualPath} L ${actualPoints[actualPoints.length - 1].x} ${chartBottom} L ${actualPoints[0].x} ${chartBottom} Z`;
+
+  const forecastMedianPoints = actualPoints.length > 0 && forecastPoints.length > 0
+    ? [{ x: actualPoints[actualPoints.length - 1].x, y: actualPoints[actualPoints.length - 1].y }, ...forecastPoints.map((point) => ({ x: point.x, y: point.y }))]
+    : [];
+  const forecastPath = forecastMedianPoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const forecastBandPoints = forecastPoints.length > 0
+    ? [
+        ...forecastPoints.map((point) => `${point.x} ${point.highY}`),
+        ...[...forecastPoints].reverse().map((point) => `${point.x} ${point.lowY}`),
+      ]
+    : [];
+  const forecastBand = forecastBandPoints.length > 0 ? `M ${forecastBandPoints.join(' L ')} Z` : '';
+
+  const firstTotal = actual[0]?.total || 0;
+  const lastTotal = actual[actual.length - 1]?.total || 0;
+  const trendPct = actual.length >= 2 && firstTotal > 0 ? ((lastTotal - firstTotal) / firstTotal) * 100 : 0;
+  const chartPoints = [...actualPoints, ...forecastPoints];
+  const forecastStartIndex = actualPoints.length;
+  const lastForecastIndex = forecastPoints.length > 0 ? totalPoints - 1 : -1;
+
+  const shouldShowMonthLabel = () => true;
+
+  const shouldShowValueLabel = (point, absoluteIndex, isActive) => {
+    if (isActive) return true;
+    if (point.kind === 'actual' && absoluteIndex === 0) return true;
+    if (point.kind === 'actual' && absoluteIndex === actualPoints.length - 1) return true;
+    if (point.kind === 'forecast' && absoluteIndex === lastForecastIndex) return true;
+    return false;
+  };
 
   return (
     <div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+      <svg
+        width="100%"
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="xMidYMid meet"
+        onClick={() => setActivePoint(null)}
+      >
         <defs>
           <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={t.green} stopOpacity="0.3" />
+            <stop offset="0%" stopColor={t.green} stopOpacity="0.26" />
+            <stop offset="100%" stopColor={t.green} stopOpacity="0.03" />
+          </linearGradient>
+          <linearGradient id="forecastGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={t.green} stopOpacity="0.12" />
             <stop offset="100%" stopColor={t.green} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        {[0, 0.25, 0.5, 0.75, 1].map(pct => (
-          <line key={pct} x1={padding.left} y1={padding.top + pct * chartH} x2={W - padding.right} y2={padding.top + pct * chartH} stroke={t.border} strokeWidth="0.5" />
+        {[0, 0.25, 0.5, 0.75, 1].map((pct) => (
+          <line
+            key={pct}
+            x1={padding.left}
+            y1={padding.top + pct * chartH}
+            x2={W - padding.right}
+            y2={padding.top + pct * chartH}
+            stroke={t.border}
+            strokeWidth="0.5"
+          />
         ))}
-        <path d={areaD} fill="url(#spendGrad)" />
-        <path d={pathD} fill="none" stroke={t.green} strokeWidth="2" />
-        {points.map((p, i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r="4" fill={t.green} />
-            <text x={p.x} y={p.y - 8} textAnchor="middle" fill={t.text} fontSize="9" fontWeight="600" fontFamily="-apple-system, system-ui, sans-serif">
-              ${p.total.toLocaleString()}
-            </text>
-            <text x={p.x} y={H - 6} textAnchor="middle" fill={t.textTertiary} fontSize="9" fontFamily="-apple-system, system-ui, sans-serif">
-              {p.month.replace(' 20', " '")}
-            </text>
-          </g>
-        ))}
+        <path d={actualArea} fill="url(#spendGrad)" />
+        {forecastBand && <path d={forecastBand} fill="url(#forecastGrad)" />}
+        <path d={actualPath} fill="none" stroke={t.green} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+        {forecastPath && (
+          <path
+            d={forecastPath}
+            fill="none"
+            stroke={t.green}
+            strokeWidth="1.8"
+            strokeDasharray="5 4"
+            strokeOpacity="0.72"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+        {chartPoints.map((point, index) => {
+          const isFirst = index === 0;
+          const isLast = index === chartPoints.length - 1;
+          const isActive = activePoint?.kind === point.kind && activePoint?.index === point.index;
+          const labelX = isFirst ? point.x + 8 : isLast ? point.x - 8 : point.x;
+          const anchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
+          const labelY = Math.max(padding.top - 8, point.y - 10);
+          const radius = isActive ? 6.4 : point.kind === 'forecast' ? 3.5 : 4;
+          const showValueLabel = shouldShowValueLabel(point, index, isActive);
+          const showMonthLabel = shouldShowMonthLabel(point, index);
+          const valueText = compactCurrency(point.kind === 'forecast' ? point.median : point.total);
+
+          return (
+            <g key={`${point.kind}-${point.sortKey || point.month || index}`}>
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r="14"
+                fill="transparent"
+                style={{ cursor: 'pointer' }}
+                onMouseEnter={(event) => {
+                  event.stopPropagation();
+                  setActivePoint({ kind: point.kind, index: point.index });
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActivePoint({ kind: point.kind, index: point.index });
+                }}
+              />
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r={radius}
+                fill={t.green}
+                opacity={point.kind === 'forecast' ? 0.55 : 1}
+                stroke={isActive ? t.text : 'none'}
+                strokeWidth={isActive ? '1.2' : '0'}
+                style={{ transition: 'r 160ms ease, opacity 160ms ease' }}
+              />
+              {showValueLabel && (
+                <text
+                  x={labelX}
+                  y={labelY}
+                  textAnchor={anchor}
+                  fill={t.text}
+                  fontSize="9"
+                  fontWeight="700"
+                  fontFamily="-apple-system, system-ui, sans-serif"
+                  opacity={point.kind === 'forecast' ? 0.84 : 1}
+                >
+                  {valueText}
+                </text>
+              )}
+              {showMonthLabel && (
+                <text
+                  x={labelX}
+                  y={totalPoints > 6 ? (index % 2 === 0 ? H - 18 : H - 8) : H - 8}
+                  textAnchor={anchor}
+                  fill={t.textTertiary}
+                  fontSize="8"
+                  fontFamily="-apple-system, system-ui, sans-serif"
+                  opacity={point.kind === 'forecast' ? 0.65 : 1}
+                >
+                  {monthLabelShort(point.month)}
+                </text>
+              )}
+            </g>
+          );
+        })}
         <text x={padding.left - 4} y={padding.top + 4} textAnchor="end" fill={t.textTertiary} fontSize="8" fontFamily="-apple-system, system-ui, sans-serif">
           ${maxTotal.toLocaleString()}
         </text>
@@ -130,10 +386,48 @@ function SpendingChart({ spending, t }) {
           $0
         </text>
       </svg>
-      <div style={{ fontSize: 11, color: Number(trendPct) <= 0 ? t.green : t.red, fontWeight: 600, marginTop: 4 }}>
-        {trendPct}% {Number(trendPct) <= 0 ? 'reduction' : 'increase'} ({spending[0].month} to {spending[spending.length - 1].month})
+      <div style={{ fontSize: 11, color: trendPct <= 0 ? t.green : t.red, fontWeight: 600, marginTop: 4 }}>
+        {Math.round(trendPct)}% {trendPct <= 0 ? 'reduction' : 'increase'} ({actual[0].month} to {actual[actual.length - 1].month})
       </div>
+      {forecast && (
+        <div style={{ fontSize: 11, color: t.textSecondary, marginTop: 6, lineHeight: 1.4 }}>
+          Next month likely lands around {formatCurrency(forecast.summary.expectedNextMonth)}.
+          <br />
+          Likely range: {formatCurrency(forecast.summary.rangeLow)} to {formatCurrency(forecast.summary.rangeHigh)}.
+        </div>
+      )}
     </div>
+  );
+}
+
+function EditorInput({ value, onChange, placeholder, width = '100%', type = 'text' }) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      style={{
+        width,
+        borderRadius: 10,
+        border: '1px solid rgba(255,255,255,0.08)',
+        background: 'rgba(255,255,255,0.04)',
+        color: 'inherit',
+        padding: '6px 8px',
+        fontSize: 12,
+      }}
+    />
+  );
+}
+
+function EditorSection({ title, children, t }) {
+  return (
+    <Card dark t={t} style={{ marginBottom: 16, padding: 16 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: t.textTertiary, marginBottom: 12 }}>
+        {title}
+      </div>
+      {children}
+    </Card>
   );
 }
 
@@ -142,23 +436,58 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
   const [importError, setImportError] = useState(null);
   const [statementFiles, setStatementFiles] = useState([]);
   const [statementLoading, setStatementLoading] = useState(false);
+  const [statementUploading, setStatementUploading] = useState(false);
+  const [isEditingPortfolio, setIsEditingPortfolio] = useState(false);
+  const [portfolioDraft, setPortfolioDraft] = useState(null);
   const fileInputRef = useRef(null);
+  const statementInputRef = useRef(null);
 
   const {
     holdings, accounts, budget, debt, goals, spending, giving,
     stocksValue, cashValue, totalDebt, totalIncome, totalExpenses,
-    surplus, netWorth, isDemo, importData, importSpendingMonth, exportData, resetToDemo,
+    surplus, netWorth, isDemo, importData, syncSpendingMonths, exportData, saveData, resetToDemo,
   } = usePortfolio(stocks, isAuthenticated);
 
-  const handleImport = useCallback((e) => {
-    const file = e.target.files?.[0];
+  const font = '-apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  const sectionStyle = { padding: '16px 20px' };
+  const labelStyle = { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: t.textTertiary, marginBottom: 12 };
+  const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${t.border}` };
+  const pillButtonStyle = {
+    borderRadius: 999,
+    border: `1px solid ${t.border}`,
+    background: t.glass,
+    color: t.text,
+    padding: '6px 12px',
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: font,
+    boxShadow: 'none',
+  };
+
+  const pieData = [
+    ...holdings.filter((holding) => holding.value > 0).map((holding) => ({ label: holding.symbol, value: holding.value })),
+    ...accounts.filter((account) => account.balance > 0).map((account) => ({ label: account.name, value: account.balance })),
+  ];
+
+  const statementMonths = useMemo(
+    () => normalizeSpendingMonths(statementFiles.map((item) => item?.spendingMonth)),
+    [statementFiles]
+  );
+  const spendingChronological = statementMonths.length > 0 ? statementMonths : normalizeSpendingMonths(spending);
+  const spendingRecentFirst = [...spendingChronological].reverse();
+  const statementFilesRecentFirst = [...statementFiles].sort((a, b) => String(b?.spendingMonth?.sortKey || '').localeCompare(String(a?.spendingMonth?.sortKey || '')));
+  const syncedMonthCount = Math.max(statementFilesRecentFirst.length, spendingChronological.length);
+  const shouldHideStatementsCard = syncedMonthCount >= 3;
+
+  const handleImport = useCallback((event) => {
+    const file = event.target.files?.[0];
     if (!file) return;
     setImportError(null);
-
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = (loadEvent) => {
       try {
-        const data = JSON.parse(ev.target.result);
+        const data = JSON.parse(loadEvent.target.result);
         const result = importData(data);
         if (!result.success) setImportError(result.error);
       } catch {
@@ -166,30 +495,29 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
       }
     };
     reader.readAsText(file);
-    e.target.value = '';
+    event.target.value = '';
   }, [importData]);
 
   const handleExport = useCallback(() => {
     const data = exportData();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'opticon-portfolio.json';
-    a.click();
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'opticon-portfolio.json';
+    anchor.click();
     URL.revokeObjectURL(url);
   }, [exportData]);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    const file = e.dataTransfer?.files?.[0];
+  const handleDrop = useCallback((event) => {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
     if (!file || !file.name.endsWith('.json')) return;
     setImportError(null);
-
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = (loadEvent) => {
       try {
-        const data = JSON.parse(ev.target.result);
+        const data = JSON.parse(loadEvent.target.result);
         const result = importData(data);
         if (!result.success) setImportError(result.error);
       } catch {
@@ -199,87 +527,154 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
     reader.readAsText(file);
   }, [importData]);
 
+  const refreshStatements = useCallback(async () => {
+    setStatementLoading(true);
+    try {
+      const res = await fetch('/api/statements', { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const files = Array.isArray(data?.statements) ? data.statements.filter((item) => item?.spendingMonth?.month) : [];
+      setStatementFiles(files);
+      const result = syncSpendingMonths(files.map((item) => item.spendingMonth));
+      if (!result.success) setImportError(result.error);
+    } catch (err) {
+      setStatementFiles([]);
+      setImportError(err?.message || 'Failed to load saved statements');
+    } finally {
+      setStatementLoading(false);
+    }
+  }, [syncSpendingMonths]);
+
   useEffect(() => {
     if (tab !== 'spending') return;
-    let active = true;
+    refreshStatements();
+  }, [refreshStatements, tab]);
 
-    const loadStatements = async () => {
-      setStatementLoading(true);
-      try {
-        const res = await fetch('/api/statements');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!active) return;
-        setStatementFiles(Array.isArray(data?.statements) ? data.statements.filter((item) => item?.spendingMonth?.month) : []);
-      } catch {
-        if (!active) return;
-        setStatementFiles([]);
-      } finally {
-        if (active) setStatementLoading(false);
-      }
-    };
+  const handleStatementUpload = useCallback(async (event) => {
+    const files = Array.from(event.target.files || []).filter((file) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+    event.target.value = '';
+    if (files.length === 0) return;
 
-    loadStatements();
-    return () => {
-      active = false;
-    };
-  }, [tab]);
-
-  const handleStatementImport = useCallback((statement) => {
     setImportError(null);
-    const result = importSpendingMonth(statement?.spendingMonth);
-    if (!result.success) setImportError(result.error);
-  }, [importSpendingMonth]);
+    setStatementUploading(true);
+    try {
+      for (const file of files) {
+        const contentBase64 = await fileToBase64(file);
+        const response = await fetch('/api/statements?action=upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ filename: file.name, contentBase64 }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data?.error || `Upload failed for ${file.name}`);
+        }
+      }
+      await refreshStatements();
+    } catch (err) {
+      setImportError(err?.message || 'Upload failed');
+    } finally {
+      setStatementUploading(false);
+    }
+  }, [refreshStatements]);
 
-  const font = '-apple-system, BlinkMacSystemFont, system-ui, sans-serif';
-  const sectionStyle = { padding: '16px 20px' };
-  const labelStyle = { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: t.textTertiary, marginBottom: 12 };
-  const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${t.border}` };
+  const startEditingPortfolio = useCallback(() => {
+    setImportError(null);
+    setPortfolioDraft(clonePortfolioData(exportData()));
+    setIsEditingPortfolio(true);
+  }, [exportData]);
 
-  const pieData = [
-    ...holdings.filter(h => h.value > 0).map(h => ({ label: h.symbol, value: h.value })),
-    ...accounts.filter(a => a.balance > 0).map(a => ({ label: a.name, value: a.balance })),
+  const cancelEditingPortfolio = useCallback(() => {
+    setPortfolioDraft(null);
+    setIsEditingPortfolio(false);
+  }, []);
+
+  const savePortfolioDraft = useCallback(() => {
+    if (!portfolioDraft) return;
+    const result = saveData(portfolioDraft);
+    if (!result.success) {
+      setImportError(result.error);
+      return;
+    }
+    setImportError(null);
+    setIsEditingPortfolio(false);
+  }, [portfolioDraft, saveData]);
+
+  const updateDraft = useCallback((section, updater) => {
+    setPortfolioDraft((current) => {
+      if (!current) return current;
+      const next = clonePortfolioData(current);
+      next[section] = updater(next[section] || []);
+      return next;
+    });
+  }, []);
+
+  const updateBudgetDraft = useCallback((key, updater) => {
+    setPortfolioDraft((current) => {
+      if (!current) return current;
+      const next = clonePortfolioData(current);
+      next.budget = next.budget || { income: [], expenses: [] };
+      next.budget[key] = updater(next.budget[key] || []);
+      return next;
+    });
+  }, []);
+
+  const headerActions = [
+    ...(tab === 'spending' && shouldHideStatementsCard
+      ? [{ label: statementUploading ? 'Uploading…' : 'Upload PDFs', onClick: () => statementInputRef.current?.click() }]
+      : []),
+    { label: 'Export JSON', onClick: handleExport },
+    { label: 'Import JSON', onClick: () => fileInputRef.current?.click() },
+    ...(!isDemo ? [{ label: 'Reset to empty', onClick: resetToDemo, danger: true }] : []),
   ];
+
+  const editableHoldings = portfolioDraft?.holdings || [];
+  const editableAccounts = portfolioDraft?.accounts || [];
+  const editableDebt = portfolioDraft?.debt || [];
+  const editableGoals = portfolioDraft?.goals || [];
+  const editableIncome = portfolioDraft?.budget?.income || [];
+  const editableExpenses = portfolioDraft?.budget?.expenses || [];
 
   return (
     <div
-      onDragOver={(e) => e.preventDefault()}
+      onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
-      style={{
-        overflow: 'auto',
-        height: '100%',
-        fontFamily: font,
-      }}
+      style={{ overflow: 'auto', height: '100%', fontFamily: font }}
     >
-      {/* Header */}
-      <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
+      <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}`, gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: t.text, letterSpacing: '-0.3px' }}>Portfolio</span>
           {isDemo && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: t.glass, color: t.textTertiary, fontWeight: 600 }}>DEMO</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={handleExport} style={{ background: t.glass, border: `1px solid ${t.border}`, borderRadius: 6, padding: '4px 8px', fontSize: 10, color: t.textSecondary, cursor: 'pointer', fontFamily: font }}>
-            Export
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} style={{ background: t.glass, border: `1px solid ${t.border}`, borderRadius: 6, padding: '4px 8px', fontSize: 10, color: t.textSecondary, cursor: 'pointer', fontFamily: font }}>
-            Import
-          </button>
-          {!isDemo && (
-            <button onClick={resetToDemo} style={{ background: t.glass, border: `1px solid ${t.border}`, borderRadius: 6, padding: '4px 8px', fontSize: 10, color: t.red, cursor: 'pointer', fontFamily: font }}>
-              Reset
+          {tab === 'portfolio' && !isEditingPortfolio && (
+            <button onClick={startEditingPortfolio} style={pillButtonStyle}>
+              Edit
             </button>
           )}
+          {tab === 'portfolio' && isEditingPortfolio && (
+            <>
+              <button onClick={cancelEditingPortfolio} style={{ ...pillButtonStyle, color: t.textSecondary }}>
+                Cancel
+              </button>
+              <button onClick={savePortfolioDraft} style={{ ...pillButtonStyle, background: t.text, color: t.bg, borderColor: 'transparent' }}>
+                Save
+              </button>
+            </>
+          )}
+          <ActionMenu t={t} font={font} actions={headerActions} />
         </div>
         <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
+        <input ref={statementInputRef} type="file" accept="application/pdf,.pdf" multiple onChange={handleStatementUpload} style={{ display: 'none' }} />
       </div>
 
       {importError && (
         <div style={{ margin: '8px 16px', padding: '8px 12px', background: 'rgba(255,69,58,0.15)', borderRadius: 8, fontSize: 11, color: t.red }}>
-          Import error: {importError}
+          {importError}
         </div>
       )}
 
-      {/* Net Worth Hero */}
       <div style={{ padding: '16px 16px 12px' }}>
         <div style={{ fontSize: 11, color: t.textTertiary, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Net Worth</div>
         <div style={{ fontSize: 'clamp(28px, 6vw, 40px)', fontWeight: 700, color: netWorth >= 0 ? t.text : t.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-1.5px', lineHeight: 1 }}>
@@ -292,29 +687,32 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
         </div>
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, padding: '0 16px', marginBottom: 16, overflowX: 'auto' }}>
-        {TABS.map(t2 => (
+        {TABS.map((tabName) => (
           <button
-            key={t2}
-            onClick={() => setTab(t2)}
+            key={tabName}
+            onClick={() => setTab(tabName)}
             style={{
-              padding: '6px 14px', borderRadius: 100, border: 'none', fontSize: 12, fontWeight: 600,
-              fontFamily: font, cursor: 'pointer', whiteSpace: 'nowrap',
-              background: tab === t2 ? t.text : t.glass,
-              color: tab === t2 ? t.bg : t.textSecondary,
+              padding: '6px 14px',
+              borderRadius: 100,
+              border: 'none',
+              fontSize: 12,
+              fontWeight: 600,
+              fontFamily: font,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              background: tab === tabName ? t.text : t.glass,
+              color: tab === tabName ? t.bg : t.textSecondary,
               transition: 'all 0.15s ease',
             }}
           >
-            {t2.charAt(0).toUpperCase() + t2.slice(1)}
+            {tabName.charAt(0).toUpperCase() + tabName.slice(1)}
           </button>
         ))}
       </div>
 
-      {/* Content */}
-      <div style={{ padding: '0 16px 80px', maxWidth: 700, margin: '0 auto' }}>
-
-        {tab === 'portfolio' && (
+      <div style={{ padding: '0 16px 80px', maxWidth: 720, margin: '0 auto' }}>
+        {tab === 'portfolio' && !isEditingPortfolio && (
           <>
             <Card dark={dark} t={t} style={{ marginBottom: 16, padding: 20 }}>
               <div style={labelStyle}>Holdings</div>
@@ -324,16 +722,16 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
             <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
               <div style={sectionStyle}>
                 <div style={labelStyle}>Stocks</div>
-                {holdings.map(h => (
-                  <div key={h.symbol} style={rowStyle}>
+                {holdings.map((holding) => (
+                  <div key={holding.symbol} style={rowStyle}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{h.symbol}</div>
-                      <div style={{ fontSize: 11, color: t.textTertiary }}>{h.shares.toFixed(4)} shares @ {formatCurrency(h.costBasis)}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{holding.symbol}</div>
+                      <div style={{ fontSize: 11, color: t.textTertiary }}>{holding.shares.toFixed(4)} shares @ {formatCurrency(holding.costBasis)}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(h.value)}</div>
-                      <div style={{ fontSize: 11, color: h.gain >= 0 ? t.green : t.red, fontVariantNumeric: 'tabular-nums' }}>
-                        {h.gain >= 0 ? '+' : ''}{formatCurrency(h.gain)} ({h.gainPercent >= 0 ? '+' : ''}{h.gainPercent.toFixed(1)}%)
+                      <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(holding.value)}</div>
+                      <div style={{ fontSize: 11, color: holding.gain >= 0 ? t.green : t.red, fontVariantNumeric: 'tabular-nums' }}>
+                        {holding.gain >= 0 ? '+' : ''}{formatCurrency(holding.gain)} ({holding.gainPercent >= 0 ? '+' : ''}{holding.gainPercent.toFixed(1)}%)
                       </div>
                     </div>
                   </div>
@@ -348,14 +746,14 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
             <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
               <div style={sectionStyle}>
                 <div style={labelStyle}>Cash Accounts</div>
-                {accounts.map((a, i) => (
-                  <div key={i} style={rowStyle}>
+                {accounts.map((account, index) => (
+                  <div key={`${account.name}-${index}`} style={rowStyle}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{a.name}</div>
-                      <div style={{ fontSize: 11, color: t.textTertiary }}>{a.type}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{account.name}</div>
+                      <div style={{ fontSize: 11, color: t.textTertiary }}>{account.type}</div>
                     </div>
                     <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>
-                      {formatCurrency(a.balance, a.currency)}
+                      {formatCurrency(account.balance, account.currency)}
                     </div>
                   </div>
                 ))}
@@ -364,13 +762,107 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
           </>
         )}
 
+        {tab === 'portfolio' && isEditingPortfolio && portfolioDraft && (
+          <>
+            <EditorSection title="Stocks" t={t}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {editableHoldings.map((holding, index) => (
+                  <div key={`${holding.symbol}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto auto', gap: 6 }}>
+                    <EditorInput value={holding.symbol || ''} onChange={(event) => updateDraft('holdings', (list) => list.map((item, idx) => idx === index ? { ...item, symbol: event.target.value.toUpperCase() } : item))} placeholder="Symbol" />
+                    <EditorInput type="number" value={holding.shares ?? 0} onChange={(event) => updateDraft('holdings', (list) => list.map((item, idx) => idx === index ? { ...item, shares: parseNumberInput(event.target.value) } : item))} placeholder="Shares" />
+                    <EditorInput type="number" value={holding.costBasis ?? 0} onChange={(event) => updateDraft('holdings', (list) => list.map((item, idx) => idx === index ? { ...item, costBasis: parseNumberInput(event.target.value) } : item))} placeholder="Cost basis" />
+                    <button onClick={() => updateDraft('holdings', (list) => list.map((item, idx) => idx === index ? { ...item, shares: 0 } : item))} style={{ ...pillButtonStyle, color: t.orange || t.textSecondary }}>Sell</button>
+                    <button onClick={() => updateDraft('holdings', (list) => list.filter((_, idx) => idx !== index))} style={{ ...pillButtonStyle, color: t.red }}>Remove</button>
+                  </div>
+                ))}
+                <button onClick={() => updateDraft('holdings', (list) => [...list, { symbol: '', shares: 0, costBasis: 0 }])} style={pillButtonStyle}>Add stock</button>
+              </div>
+            </EditorSection>
+
+            <EditorSection title="Cash Accounts" t={t}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {editableAccounts.map((account, index) => (
+                  <div key={`${account.name}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr 1fr auto', gap: 6 }}>
+                    <EditorInput value={account.name || ''} onChange={(event) => updateDraft('accounts', (list) => list.map((item, idx) => idx === index ? { ...item, name: event.target.value } : item))} placeholder="Account name" />
+                    <EditorInput value={account.type || ''} onChange={(event) => updateDraft('accounts', (list) => list.map((item, idx) => idx === index ? { ...item, type: event.target.value } : item))} placeholder="Type" />
+                    <EditorInput value={account.currency || 'CAD'} onChange={(event) => updateDraft('accounts', (list) => list.map((item, idx) => idx === index ? { ...item, currency: event.target.value.toUpperCase() } : item))} placeholder="CAD" />
+                    <EditorInput type="number" value={account.balance ?? 0} onChange={(event) => updateDraft('accounts', (list) => list.map((item, idx) => idx === index ? { ...item, balance: parseNumberInput(event.target.value) } : item))} placeholder="0.00" />
+                    <button onClick={() => updateDraft('accounts', (list) => list.filter((_, idx) => idx !== index))} style={{ ...pillButtonStyle, color: t.red }}>Remove</button>
+                  </div>
+                ))}
+                <button onClick={() => updateDraft('accounts', (list) => [...list, { name: 'Vacation', type: 'savings', currency: 'CAD', balance: 0 }])} style={pillButtonStyle}>Add account</button>
+              </div>
+            </EditorSection>
+
+            <EditorSection title="Debt" t={t}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {editableDebt.map((entry, index) => (
+                  <div key={`${entry.name}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.4fr auto', gap: 6 }}>
+                    <EditorInput value={entry.name || ''} onChange={(event) => updateDraft('debt', (list) => list.map((item, idx) => idx === index ? { ...item, name: event.target.value } : item))} placeholder="Debt name" />
+                    <EditorInput type="number" value={entry.balance ?? 0} onChange={(event) => updateDraft('debt', (list) => list.map((item, idx) => idx === index ? { ...item, balance: parseNumberInput(event.target.value) } : item))} placeholder="Balance" />
+                    <EditorInput value={entry.note || ''} onChange={(event) => updateDraft('debt', (list) => list.map((item, idx) => idx === index ? { ...item, note: event.target.value } : item))} placeholder="Note" />
+                    <button onClick={() => updateDraft('debt', (list) => list.filter((_, idx) => idx !== index))} style={{ ...pillButtonStyle, color: t.red }}>Remove</button>
+                  </div>
+                ))}
+                <button onClick={() => updateDraft('debt', (list) => [...list, { name: '', balance: 0, note: '' }])} style={pillButtonStyle}>Add debt</button>
+              </div>
+            </EditorSection>
+
+            <EditorSection title="Goals" t={t}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {editableGoals.map((goal, index) => (
+                  <div key={`${goal.name}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr auto', gap: 6 }}>
+                    <EditorInput value={goal.name || ''} onChange={(event) => updateDraft('goals', (list) => list.map((item, idx) => idx === index ? { ...item, name: event.target.value } : item))} placeholder="Goal" />
+                    <EditorInput type="number" value={goal.target ?? 0} onChange={(event) => updateDraft('goals', (list) => list.map((item, idx) => idx === index ? { ...item, target: parseNumberInput(event.target.value) } : item))} placeholder="Target" />
+                    <EditorInput type="number" value={goal.saved ?? 0} onChange={(event) => updateDraft('goals', (list) => list.map((item, idx) => idx === index ? { ...item, saved: parseNumberInput(event.target.value) } : item))} placeholder="Saved" />
+                    <EditorInput value={goal.deadline || ''} onChange={(event) => updateDraft('goals', (list) => list.map((item, idx) => idx === index ? { ...item, deadline: event.target.value } : item))} placeholder="Deadline" />
+                    <button onClick={() => updateDraft('goals', (list) => list.filter((_, idx) => idx !== index))} style={{ ...pillButtonStyle, color: t.red }}>Remove</button>
+                  </div>
+                ))}
+                <button onClick={() => updateDraft('goals', (list) => [...list, { name: '', target: 0, saved: 0, deadline: '', priority: 'medium' }])} style={pillButtonStyle}>Add goal</button>
+              </div>
+            </EditorSection>
+
+            <EditorSection title="Budget" t={t}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 8 }}>Income</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {editableIncome.map((item, index) => (
+                      <div key={`${item.name}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: 6 }}>
+                        <EditorInput value={item.name || ''} onChange={(event) => updateBudgetDraft('income', (list) => list.map((entry, idx) => idx === index ? { ...entry, name: event.target.value } : entry))} placeholder="Income source" />
+                        <EditorInput type="number" value={item.amount ?? 0} onChange={(event) => updateBudgetDraft('income', (list) => list.map((entry, idx) => idx === index ? { ...entry, amount: parseNumberInput(event.target.value) } : entry))} placeholder="Amount" />
+                        <button onClick={() => updateBudgetDraft('income', (list) => list.filter((_, idx) => idx !== index))} style={{ ...pillButtonStyle, color: t.red }}>Remove</button>
+                      </div>
+                    ))}
+                    <button onClick={() => updateBudgetDraft('income', (list) => [...list, { name: '', amount: 0 }])} style={pillButtonStyle}>Add income</button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 8 }}>Expenses</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {editableExpenses.map((item, index) => (
+                      <div key={`${item.name}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: 6 }}>
+                        <EditorInput value={item.name || ''} onChange={(event) => updateBudgetDraft('expenses', (list) => list.map((entry, idx) => idx === index ? { ...entry, name: event.target.value } : entry))} placeholder="Expense" />
+                        <EditorInput type="number" value={item.amount ?? 0} onChange={(event) => updateBudgetDraft('expenses', (list) => list.map((entry, idx) => idx === index ? { ...entry, amount: parseNumberInput(event.target.value) } : entry))} placeholder="Amount" />
+                        <button onClick={() => updateBudgetDraft('expenses', (list) => list.filter((_, idx) => idx !== index))} style={{ ...pillButtonStyle, color: t.red }}>Remove</button>
+                      </div>
+                    ))}
+                    <button onClick={() => updateBudgetDraft('expenses', (list) => [...list, { name: '', amount: 0 }])} style={pillButtonStyle}>Add expense</button>
+                  </div>
+                </div>
+              </div>
+            </EditorSection>
+          </>
+        )}
+
         {tab === 'budget' && (
           <>
             <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
               <div style={sectionStyle}>
                 <div style={labelStyle}>Monthly Income</div>
-                {budget.income.map((item, i) => (
-                  <div key={i} style={rowStyle}>
+                {budget.income.map((item, index) => (
+                  <div key={`${item.name}-${index}`} style={rowStyle}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</div>
                       {item.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{item.note}</div>}
@@ -380,12 +872,11 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                 ))}
               </div>
             </Card>
-
             <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
               <div style={sectionStyle}>
                 <div style={labelStyle}>Monthly Expenses</div>
-                {budget.expenses.map((item, i) => (
-                  <div key={i} style={rowStyle}>
+                {budget.expenses.map((item, index) => (
+                  <div key={`${item.name}-${index}`} style={rowStyle}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</div>
                       {item.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{item.note}</div>}
@@ -401,19 +892,18 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                 </div>
               </div>
             </Card>
-
             {giving.length > 0 && (
               <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
                 <div style={sectionStyle}>
                   <div style={labelStyle}>Giving</div>
-                  {giving.map((g, i) => (
-                    <div key={i} style={rowStyle}>
+                  {giving.map((entry, index) => (
+                    <div key={`${entry.name}-${index}`} style={rowStyle}>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 14, opacity: g.active ? 1 : 0.5 }}>{g.name}</div>
-                        {g.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{g.note}</div>}
+                        <div style={{ fontWeight: 600, fontSize: 14, opacity: entry.active ? 1 : 0.5 }}>{entry.name}</div>
+                        {entry.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{entry.note}</div>}
                       </div>
-                      <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums', opacity: g.active ? 1 : 0.5 }}>
-                        {formatCurrency(g.amount)}/mo
+                      <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums', opacity: entry.active ? 1 : 0.5 }}>
+                        {formatCurrency(entry.amount)}/mo
                       </div>
                     </div>
                   ))}
@@ -428,18 +918,18 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
             <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
               <div style={sectionStyle}>
                 <div style={labelStyle}>Outstanding Debt</div>
-                {debt.map((d, i) => (
-                  <div key={i} style={{ marginBottom: 16 }}>
+                {debt.map((entry, index) => (
+                  <div key={`${entry.name}-${index}`} style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{d.name}</div>
-                        {d.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{d.note}</div>}
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{entry.name}</div>
+                        {entry.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{entry.note}</div>}
                       </div>
                       <div style={{ fontWeight: 600, fontSize: 14, color: t.red, fontVariantNumeric: 'tabular-nums' }}>
-                        {formatCurrency(d.balance)}
+                        {formatCurrency(entry.balance)}
                       </div>
                     </div>
-                    <ProgressBar value={0} max={d.balance} color={t.red} t={t} />
+                    <ProgressBar value={0} max={entry.balance} color={t.red} t={t} />
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, paddingTop: 12, borderTop: `1px solid ${t.border}`, fontWeight: 700, fontSize: 16 }}>
@@ -448,15 +938,11 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                 </div>
               </div>
             </Card>
-
             {surplus > 0 && (
               <Card dark={dark} t={t} style={{ marginBottom: 16, padding: 20 }}>
                 <div style={labelStyle}>Payoff Timeline</div>
                 <div style={{ fontSize: 13, color: t.textSecondary }}>
                   At {formatCurrency(surplus)}/mo surplus: ~{Math.ceil(totalDebt / surplus)} months to debt-free
-                </div>
-                <div style={{ fontSize: 12, color: t.textTertiary, marginTop: 4 }}>
-                  Target: {new Date(Date.now() + Math.ceil(totalDebt / surplus) * 30 * 86400000).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </div>
               </Card>
             )}
@@ -467,25 +953,25 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
           <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
             <div style={sectionStyle}>
               <div style={labelStyle}>Goals</div>
-              {goals.map((g, i) => {
-                const pct = g.target > 0 ? (g.saved / g.target) * 100 : 0;
-                const priorityColor = g.priority === 'high' ? t.red : g.priority === 'medium' ? t.orange : t.green;
+              {goals.map((goal, index) => {
+                const pct = goal.target > 0 ? (goal.saved / goal.target) * 100 : 0;
+                const priorityColor = goal.priority === 'high' ? t.red : goal.priority === 'medium' ? t.orange : t.green;
                 return (
-                  <div key={i} style={{ marginBottom: 16 }}>
+                  <div key={`${goal.name}-${index}`} style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 3, height: 20, borderRadius: 2, background: priorityColor }} />
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{g.name}</div>
-                          {g.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{g.note}</div>}
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{goal.name}</div>
+                          {goal.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{goal.note}</div>}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(g.target)}</div>
-                        {g.deadline && <div style={{ fontSize: 10, color: t.textTertiary }}>{g.deadline}</div>}
+                        <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(goal.target)}</div>
+                        {goal.deadline && <div style={{ fontSize: 10, color: t.textTertiary }}>{goal.deadline}</div>}
                       </div>
                     </div>
-                    <ProgressBar value={g.saved} max={g.target} color={priorityColor} t={t} />
+                    <ProgressBar value={goal.saved} max={goal.target} color={priorityColor} t={t} />
                     <div style={{ fontSize: 10, color: t.textTertiary, marginTop: 2 }}>{pct.toFixed(0)}% saved</div>
                   </div>
                 );
@@ -496,20 +982,27 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
 
         {tab === 'spending' && (
           <>
-            <Card dark={dark} t={t} style={{ marginBottom: 16, padding: 20 }}>
-              <div style={labelStyle}>Import Statement</div>
-              <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 12 }}>
-                Pull a monthly spending summary from your saved statements folder.
-              </div>
-              {statementLoading ? (
-                <div style={{ fontSize: 12, color: t.textTertiary }}>Looking for statements...</div>
-              ) : statementFiles.length === 0 ? (
-                <div style={{ fontSize: 12, color: t.textTertiary }}>No statements found in Documents/Misc/statement.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {statementFiles.map((statement) => {
-                    const imported = spending.some((entry) => entry.month === statement.spendingMonth.month);
-                    return (
+            {!shouldHideStatementsCard && (
+              <Card dark={dark} t={t} style={{ marginBottom: 16, padding: 20 }}>
+                <div style={labelStyle}>Saved Statements</div>
+                <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 12 }}>
+                  Upload PDF statements once. Opticon keeps the spending months in sync on this account.
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button onClick={() => statementInputRef.current?.click()} disabled={statementUploading} style={pillButtonStyle}>
+                    {statementUploading ? 'Uploading…' : 'Upload PDFs'}
+                  </button>
+                </div>
+                {statementLoading ? (
+                  <div style={{ fontSize: 12, color: t.textTertiary }}>Loading saved statements…</div>
+                ) : statementFiles.length === 0 ? (
+                  <div style={{ fontSize: 12, color: t.textTertiary }}>No statements saved to this account yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontSize: 12, color: t.green }}>
+                      Saved {statementFiles.length} statement{statementFiles.length === 1 ? '' : 's'} to this account.
+                    </div>
+                    {statementFilesRecentFirst.map((statement) => (
                       <div key={statement.filename} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, background: t.glass, border: `1px solid ${t.border}` }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{statement.spendingMonth.month}</div>
@@ -517,47 +1010,34 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                             {statement.filename} · {formatCurrency(statement.spendingMonth.total, 'CAD')}
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleStatementImport(statement)}
-                          style={{
-                            border: `1px solid ${t.border}`,
-                            background: imported ? t.text : t.glass,
-                            color: imported ? t.bg : t.text,
-                            borderRadius: 999,
-                            padding: '6px 12px',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            fontFamily: font,
-                          }}
-                        >
-                          {imported ? 'Replace' : 'Import'}
-                        </button>
+                        <div style={{ fontSize: 11, color: t.textTertiary }}>In account</div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            )}
 
             <Card dark={dark} t={t} style={{ marginBottom: 16, padding: 20 }}>
               <div style={labelStyle}>Spending Trends</div>
-              <SpendingChart spending={spending} t={t} />
+              <SpendingChart spending={spendingChronological} t={t} />
             </Card>
 
             <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
               <div style={sectionStyle}>
                 <div style={labelStyle}>Monthly Breakdown</div>
-                {spending.map((s, i) => (
-                  <div key={i} style={{ marginBottom: 16 }}>
+                {spendingRecentFirst.map((entry, index) => (
+                  <div key={`${entry.month}-${index}`} style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, marginBottom: 6 }}>
-                      <span>{s.month}</span>
-                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(s.total)}</span>
+                      <span>{entry.month}</span>
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(entry.total)}</span>
                     </div>
-                    {Object.entries(s.categories).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => (
-                      <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: t.textSecondary, padding: '2px 0' }}>
-                        <span>{cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
-                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(amount)} ({Math.round(amount / s.total * 100)}%)</span>
+                    {Object.entries(entry.categories).sort((a, b) => b[1] - a[1]).map(([category, amount]) => (
+                      <div key={category} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: t.textSecondary, padding: '2px 0' }}>
+                        <span>{category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(amount)} ({entry.total > 0 ? Math.round(amount / entry.total * 100) : 0}%)
+                        </span>
                       </div>
                     ))}
                   </div>

@@ -12,8 +12,25 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.min.css">
     <link rel="stylesheet" href="/src/design-tokens.css" />
     <title>Opticon</title>
+    <script>
+      (function () {
+        var hour = new Date().getHours();
+        var isNight = hour >= 19 || hour < 7;
+        var prefersDark = false;
+        var prefersLight = false;
+        try {
+          prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        } catch (_) {}
+        var theme = prefersDark ? 'dark' : (!prefersLight || isNight ? 'dark' : 'light');
+        window.__OPTICON_THEME__ = theme;
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.documentElement.style.backgroundColor = theme === 'dark' ? '#000000' : '#ffffff';
+      })();
+    </script>
   </head>
-  <body>
+  <body style="background:#000000;">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

@@ -1,14 +1,42 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { getStatementsPayload } from './server/api/statements-data.js'
 
 const PROD_API = 'https://opticon.heyitsmejosh.com';
+
+function localStatementsPlugin() {
+  return {
+    name: 'local-statements-api',
+    configureServer(server) {
+      server.middlewares.use('/api/statements', async (req, res, next) => {
+        const url = new URL(req.url || '/api/statements', 'http://127.0.0.1');
+        if (url.searchParams.get('action') !== 'scan-local') return next();
+        if ((req.method || 'GET').toUpperCase() !== 'GET') return next();
+
+        try {
+          const filename = url.searchParams.get('filename') || undefined;
+          const statementsDir = url.searchParams.get('dir') || undefined;
+          const payload = await getStatementsPayload({ filename, statementsDir });
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify(payload));
+        } catch {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ exists: false, statements: [] }));
+        }
+      });
+    }
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
   plugins: [
     react(),
+    localStatementsPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {

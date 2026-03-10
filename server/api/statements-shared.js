@@ -78,7 +78,7 @@ export function parseStatementText(text = '') {
 }
 
 export function summarizeTransactions(transactions = [], filename = '') {
-  const filtered = transactions.filter((txn) => typeof txn?.amount === 'number' && txn.category);
+  const filtered = transactions.filter((txn) => typeof txn?.amount === 'number' && txn.category && txn.amount < 0);
   const categories = {};
 
   for (const txn of filtered) {
@@ -101,6 +101,7 @@ export function summarizeTransactions(transactions = [], filename = '') {
     total,
     categories: cleanCategories,
     source: filename,
+    version: 2,
     importedAt: new Date().toISOString(),
   };
 }

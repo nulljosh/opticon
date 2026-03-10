@@ -1,14 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 
-// Free APIs for live prices
-const COINGECKO_API = 'https://api.coingecko.com/api/v3';
-
-// Asset mappings for different APIs
-const CRYPTO_IDS = {
-  btc: 'bitcoin',
-  eth: 'ethereum',
-};
-
 // Yahoo Finance symbols for commodities & indices
 const YAHOO_SYMBOLS = {
   gold: 'GC=F',
@@ -36,21 +27,18 @@ export function useLivePrices(initialAssets) {
 
   const fetchCryptoPrices = useCallback(async () => {
     try {
-      const ids = Object.values(CRYPTO_IDS).join(',');
-      const response = await fetch(
-        `${COINGECKO_API}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`
-      );
+      const response = await fetch('/api/prices');
       if (!response.ok) throw new Error('CoinGecko API error');
       const data = await response.json();
 
       return {
         btc: {
-          spot: data.bitcoin?.usd,
-          chgPct: data.bitcoin?.usd_24h_change || 0,
+          spot: data.btc?.spot,
+          chgPct: data.btc?.chgPct || 0,
         },
         eth: {
-          spot: data.ethereum?.usd,
-          chgPct: data.ethereum?.usd_24h_change || 0,
+          spot: data.eth?.spot,
+          chgPct: data.eth?.chgPct || 0,
         },
       };
     } catch (err) {

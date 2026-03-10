@@ -43,6 +43,50 @@ export const lightTheme = {
 
 export const getTheme = (dark) => dark ? darkTheme : lightTheme;
 
+const NIGHT_START_HOUR = 19;
+const NIGHT_END_HOUR = 7;
+
+export function isNightTime(date = new Date()) {
+  const hour = date.getHours();
+  return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR;
+}
+
+export function resolveAutoTheme({
+  now = new Date(),
+  prefersDark,
+  prefersLight,
+} = {}) {
+  const hasMatchMedia = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
+  const darkMatch = typeof prefersDark === 'boolean'
+    ? prefersDark
+    : hasMatchMedia
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false;
+  const lightMatch = typeof prefersLight === 'boolean'
+    ? prefersLight
+    : hasMatchMedia
+      ? window.matchMedia('(prefers-color-scheme: light)').matches
+      : false;
+
+  if (darkMatch) return 'dark';
+  if (!lightMatch) return 'dark';
+  return isNightTime(now) ? 'dark' : 'light';
+}
+
+export function applyResolvedTheme(themeName) {
+  if (typeof document === 'undefined') return;
+  const resolved = themeName === 'light' ? 'light' : 'dark';
+  const root = document.documentElement;
+  root.dataset.theme = resolved;
+  root.style.colorScheme = resolved;
+  root.style.backgroundColor = resolved === 'dark' ? '#000000' : '#ffffff';
+  document.body.style.backgroundColor = resolved === 'dark' ? '#000000' : '#ffffff';
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) {
+    themeMeta.setAttribute('content', resolved === 'dark' ? '#000000' : '#ffffff');
+  }
+}
+
 // Probability color helper
 export const getProbColor = (p, t) => {
   if (p >= 0.15) return t.green;

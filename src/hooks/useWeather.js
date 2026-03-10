@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? 'https://opticon-production.vercel.app' : '');
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const ICONS = {
   sun: '\u2600\uFE0F',

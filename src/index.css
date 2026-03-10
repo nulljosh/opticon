@@ -10,6 +10,7 @@ html, body, #root {
   height: 100%;
   width: 100%;
   overflow-x: auto;
+  background: #000;
 }
 
 body {
@@ -17,6 +18,12 @@ body {
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: #fff;
+}
+
+html[data-theme='light'], html[data-theme='light'] body, html[data-theme='light'] #root {
+  background: #ffffff;
+  color: #111111;
 }
 
 ::-webkit-scrollbar {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { usePolymarket, MARKET_CATEGORIES } from './hooks/usePolymarket';
 import { useLivePrices, formatLastUpdated } from './hooks/useLivePrices';
 import { useStocks } from './hooks/useStocks';
-import { getTheme } from './utils/theme';
+import { applyResolvedTheme, getTheme, resolveAutoTheme } from './utils/theme';
 import { defaultAssets } from './utils/assets';
 import { saveRun, getStats } from './utils/runHistory';
 import { calculateKelly, detectEdge } from './utils/trading';
@@ -157,7 +157,13 @@ export default function App() {
   const [authView, setAuthView] = useState(resetToken ? 'reset' : 'login'); // 'login' | 'register' | 'reset'
 
   const { showHelp, setShowHelp, SHORTCUTS } = useKeyboardShortcuts();
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(() => {
+    const bootTheme = typeof window !== 'undefined' ? window.__OPTICON_THEME__ : null;
+    if (bootTheme === 'light' || bootTheme === 'dark') {
+      return bootTheme === 'dark';
+    }
+    return resolveAutoTheme() === 'dark';
+  });
   const [activeTab, setActiveTab] = useState('simulator');
   const [mapLayers, setMapLayers] = useState({ flights: true, earthquakes: true, news: true, traffic: true, predictions: true, weather: true });
   const mapInstanceRef = useRef(null);
@@ -166,6 +172,9 @@ export default function App() {
   const [showPricing, setShowPricing] = useState(false);
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [desktopPanelOpen, setDesktopPanelOpen] = useState(false);
+  const desktopPanelRef = useRef(null);
+  const desktopNavRef = useRef(null);
   const handleMobileTabSelect = useCallback((nextTab) => {
     const isSameTab = activeTab === nextTab;
     if (!isSameTab) {
@@ -176,24 +185,70 @@ export default function App() {
     }
     setMobileTabsOpen(false);
   }, [activeTab]);
+  const handleDesktopTabSelect = useCallback((nextTab) => {
+    if (activeTab === nextTab) {
+      setDesktopPanelOpen((open) => !open);
+      return;
+    }
+    setActiveTab(nextTab);
+    setDesktopPanelOpen(true);
+  }, [activeTab]);
   // Escape key dismisses mobile panel
   useEffect(() => {
-    if (!mobilePanelOpen && !mobileTabsOpen) return;
+    if (!mobilePanelOpen && !mobileTabsOpen && !desktopPanelOpen) return;
     const handler = (e) => {
       if (e.key !== 'Escape') return;
       setMobilePanelOpen(false);
       setMobileTabsOpen(false);
+      setDesktopPanelOpen(false);
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [mobilePanelOpen, mobileTabsOpen]);
+  }, [desktopPanelOpen, mobilePanelOpen, mobileTabsOpen]);
   const [isMobileNav, setIsMobileNav] = useState(() => window.matchMedia('(max-width: 768px)').matches);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
-    const handler = (e) => setIsMobileNav(e.matches);
+    const handler = (e) => {
+      setIsMobileNav(e.matches);
+      if (e.matches) {
+        setDesktopPanelOpen(false);
+      }
+    };
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+  useEffect(() => {
+    const syncTheme = () => {
+      const nextDark = resolveAutoTheme() === 'dark';
+      setDark(nextDark);
+      applyResolvedTheme(nextDark ? 'dark' : 'light');
+    };
+    syncTheme();
+
+    const darkMq = window.matchMedia('(prefers-color-scheme: dark)');
+    const lightMq = window.matchMedia('(prefers-color-scheme: light)');
+    darkMq.addEventListener('change', syncTheme);
+    lightMq.addEventListener('change', syncTheme);
+    window.addEventListener('focus', syncTheme);
+    document.addEventListener('visibilitychange', syncTheme);
+
+    return () => {
+      darkMq.removeEventListener('change', syncTheme);
+      lightMq.removeEventListener('change', syncTheme);
+      window.removeEventListener('focus', syncTheme);
+      document.removeEventListener('visibilitychange', syncTheme);
+    };
+  }, []);
+  useEffect(() => {
+    if (isMobileNav || !desktopPanelOpen) return;
+    const handleOutside = (e) => {
+      const target = e.target;
+      if (desktopPanelRef.current?.contains(target) || desktopNavRef.current?.contains(target)) return;
+      setDesktopPanelOpen(false);
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    return () => document.removeEventListener('pointerdown', handleOutside);
+  }, [desktopPanelOpen, isMobileNav]);
   const { isPro, isStarter, isFree, subscription, refetch: refetchSubscription } = useSubscription();
 
   // Capture session_id from Stripe checkout redirect
@@ -1077,7 +1132,7 @@ const reset = useCallback(() => {
     border: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.85)'}`,
     backdropFilter: 'blur(18px) saturate(160%)',
     WebkitBackdropFilter: 'blur(18px) saturate(160%)',
-    boxShadow: dark ? '0 8px 24px rgba(0,0,0,0.28)' : '0 10px 26px rgba(15,23,42,0.08)',
+    boxShadow: 'none',
   };
 
   return (
@@ -1086,6 +1141,7 @@ const reset = useCallback(() => {
       display: 'grid',
       gridTemplateRows: 'auto auto 1fr auto',
       gridTemplateColumns: '1fr',
+      '--desktop-panel-width': desktopPanelOpen ? '420px' : '0px',
       overflow: 'hidden',
       backgroundColor: t.bg,
       backgroundImage: pnlBg === 'transparent' ? 'none' : pnlBg,
@@ -1127,7 +1183,7 @@ const reset = useCallback(() => {
           .opticon-mobile-panel { display: none !important; }
           .opticon-root {
             grid-template-rows: auto auto 1fr auto !important;
-            grid-template-columns: 1fr 420px !important;
+            grid-template-columns: 1fr var(--desktop-panel-width) !important;
           }
           .opticon-map { grid-row: 3; grid-column: 1; height: auto !important; }
           .opticon-panel { display: block; grid-row: 3; grid-column: 2; }
@@ -1145,6 +1201,10 @@ const reset = useCallback(() => {
           <span style={{ color: t.text, fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>opticon</span>
           <span style={{ width: 1, height: 14, background: t.border, marginLeft: 8 }} />
           <StatusBar t={t} reliability={stocksReliability} />
+          <span style={{ width: 1, height: 14, background: t.border }} />
+          <span style={{ fontSize: 10, color: t.textTertiary, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            updated {formatLastUpdated(stocksReliability?.lastSuccessAt ? new Date(stocksReliability.lastSuccessAt) : lastUpdated)}
+          </span>
           {weather && !isMobileNav && (
             <>
               <span style={{ width: 1, height: 14, background: t.border }} />
@@ -1154,22 +1214,22 @@ const reset = useCallback(() => {
             </>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div ref={desktopNavRef} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Tab pills */}
           <div style={{ display: 'flex', gap: 4 }}>
             {TAB_PILLS.map(pill => (
               <button
                 key={pill.key}
-                onClick={() => setActiveTab(pill.key)}
+                onClick={() => handleDesktopTabSelect(pill.key)}
                 style={{
                   padding: '4px 10px', borderRadius: 100, fontSize: 10, fontWeight: 600,
                   fontFamily: font, cursor: 'pointer',
-                  background: activeTab === pill.key ? (dark ? 'rgba(255,255,255,0.92)' : 'rgba(15,23,42,0.92)') : glassButton.background,
-                  color: activeTab === pill.key ? (dark ? '#020617' : '#ffffff') : t.textSecondary,
-                  border: activeTab === pill.key ? '1px solid transparent' : glassButton.border,
+                  background: activeTab === pill.key && desktopPanelOpen ? (dark ? 'rgba(255,255,255,0.92)' : 'rgba(15,23,42,0.92)') : glassButton.background,
+                  color: activeTab === pill.key && desktopPanelOpen ? (dark ? '#020617' : '#ffffff') : t.textSecondary,
+                  border: activeTab === pill.key && desktopPanelOpen ? '1px solid transparent' : glassButton.border,
                   backdropFilter: 'blur(16px) saturate(150%)',
                   WebkitBackdropFilter: 'blur(16px) saturate(150%)',
-                  boxShadow: activeTab === pill.key ? '0 10px 24px rgba(0,0,0,0.18)' : glassButton.boxShadow,
+                  boxShadow: 'none',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -1180,11 +1240,10 @@ const reset = useCallback(() => {
           {!isMobileNav && (
             <>
               <span style={{ width: 1, height: 14, background: t.border }} />
-              <span style={{ fontSize: 10, color: t.textTertiary, fontVariantNumeric: 'tabular-nums' }}>{formatLastUpdated(lastUpdated)}</span>
               {isFree && (
                 <button
                   onClick={() => setShowPricing(true)}
-                  style={{ background: 'rgba(0,113,227,0.82)', border: '1px solid rgba(125,211,252,0.24)', borderRadius: 9999, padding: '5px 12px', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)', backdropFilter: 'blur(16px) saturate(150%)', WebkitBackdropFilter: 'blur(16px) saturate(150%)', boxShadow: '0 10px 24px rgba(0,113,227,0.28)' }}
+                  style={{ background: 'rgba(0,113,227,0.82)', border: '1px solid rgba(125,211,252,0.24)', borderRadius: 9999, padding: '5px 12px', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)', backdropFilter: 'blur(16px) saturate(150%)', WebkitBackdropFilter: 'blur(16px) saturate(150%)', boxShadow: 'none' }}
                   onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
                   onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                 >
@@ -1192,21 +1251,8 @@ const reset = useCallback(() => {
                 </button>
               )}
               <button
-                onClick={() => setDark(!dark)}
-                aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-                style={{ ...glassButton, borderRadius: 9999, padding: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  {dark ? (
-                    <><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></>
-                  ) : (
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                  )}
-                </svg>
-              </button>
-              <button
                 onClick={logout}
-                style={{ background: 'rgba(127,29,29,0.28)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 9999, padding: '5px 12px', color: '#f87171', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: font, backdropFilter: 'blur(16px) saturate(150%)', WebkitBackdropFilter: 'blur(16px) saturate(150%)', boxShadow: '0 10px 24px rgba(127,29,29,0.22)' }}
+                style={{ background: 'rgba(127,29,29,0.28)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 9999, padding: '5px 12px', color: '#f87171', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: font, backdropFilter: 'blur(16px) saturate(150%)', WebkitBackdropFilter: 'blur(16px) saturate(150%)', boxShadow: 'none' }}
               >
                 LOGOUT
               </button>
@@ -1227,9 +1273,6 @@ const reset = useCallback(() => {
                   UPGRADE
                 </MobileMenuItem>
               )}
-              <MobileMenuItem t={t} font={font} onClick={() => setDark(!dark)}>
-                {dark ? 'LIGHT MODE' : 'DARK MODE'}
-              </MobileMenuItem>
               <MobileMenuDivider t={t} />
               <MobileMenuItem t={t} font={font} onClick={logout} style={{ color: '#ef4444' }}>
                 LOGOUT
@@ -1259,7 +1302,7 @@ const reset = useCallback(() => {
                 backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
                 color: t.text, fontSize: 16, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                boxShadow: 'none',
               }}
             >
               {mobileTabsOpen ? '\u00d7' : '\u2630'}
@@ -1270,7 +1313,7 @@ const reset = useCallback(() => {
                 background: dark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)',
                 backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
                 borderRadius: 10, padding: 4,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                boxShadow: 'none',
               }}>
                 {TAB_PILLS.map(pill => (
                   <button
@@ -1304,7 +1347,7 @@ const reset = useCallback(() => {
                 background: dark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                boxShadow: 'none',
               }}
             >
               {weather && (
@@ -1320,9 +1363,6 @@ const reset = useCallback(() => {
                   UPGRADE
                 </MobileMenuItem>
               )}
-              <MobileMenuItem t={t} font={font} onClick={() => setDark(!dark)}>
-                {dark ? 'LIGHT MODE' : 'DARK MODE'}
-              </MobileMenuItem>
               <MobileMenuDivider t={t} />
               <MobileMenuItem t={t} font={font} onClick={logout} style={{ color: '#ef4444' }}>
                 LOGOUT
@@ -1333,25 +1373,29 @@ const reset = useCallback(() => {
       </div>
 
       {/* Panel cell */}
-      <div className="opticon-panel" style={{ gridColumn: isMobileNav ? '1 / -1' : '2', overflow: 'auto', minHeight: 0 }}>
-        {activeTab === 'simulator' && simulatorPanel}
+      <div ref={desktopPanelRef} className="opticon-panel" style={{ gridColumn: isMobileNav ? '1 / -1' : '2', overflow: 'auto', minHeight: 0 }}>
+        {desktopPanelOpen && (
+          <>
+            {activeTab === 'simulator' && simulatorPanel}
 
-        {activeTab === 'portfolio' && (
-          <FinancePanel dark={dark} t={t} stocks={stocks} isAuthenticated={isAuthenticated} />
-        )}
+            {activeTab === 'portfolio' && (
+              <FinancePanel dark={dark} t={t} stocks={stocks} isAuthenticated={isAuthenticated} />
+            )}
 
-        {activeTab === 'situation' && (
-          <SituationMonitor
-            dark={dark} t={t} font={font}
-            sim={simData}
-            pmEdges={pmEdges}
-            lastPmBetMap={lastPmBetRef.current}
-            trades={trades}
-            pmExits={pmExits}
-            mapFlyTo={(params) => mapInstanceRef.current?.flyTo(params)}
-            mapLayers={mapLayers}
-            setMapLayers={setMapLayers}
-          />
+            {activeTab === 'situation' && (
+              <SituationMonitor
+                dark={dark} t={t} font={font}
+                sim={simData}
+                pmEdges={pmEdges}
+                lastPmBetMap={lastPmBetRef.current}
+                trades={trades}
+                pmExits={pmExits}
+                mapFlyTo={(params) => mapInstanceRef.current?.flyTo(params)}
+                mapLayers={mapLayers}
+                setMapLayers={setMapLayers}
+              />
+            )}
+          </>
         )}
       </div>
 

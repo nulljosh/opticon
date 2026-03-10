@@ -7,9 +7,7 @@ const FRESH_IP_MS = 5 * 60 * 1000;
 const GEO_DETAIL_ZOOM = 13.6;
 const CACHE_DETAIL_ZOOM = 13.2;
 const IP_FALLBACK_ZOOM = 11.5;
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? 'https://opticon-production.vercel.app' : '');
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const apiPath = (path) => `${API_BASE}${path}`;
 

@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? 'https://opticon-production.vercel.app' : '');
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 export function useMacro() {
   const [macro, setMacro] = useState(null);

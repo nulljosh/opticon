@@ -179,7 +179,7 @@ export const Card = ({ children, style, onClick, dark, t }) => (
     WebkitBackdropFilter: 'blur(40px) saturate(180%)',
     borderRadius: 20,
     border: `0.5px solid ${t.border}`,
-    boxShadow: dark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 0px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.07)',
+    boxShadow: 'none',
     cursor: onClick ? 'pointer' : 'default',
     overflow: 'hidden',
     transition: 'all 0.2s ease',

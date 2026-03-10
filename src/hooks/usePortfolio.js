@@ -1,10 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   DEMO_HOLDINGS, DEMO_ACCOUNTS, DEMO_BUDGET, DEMO_DEBT,
-  DEMO_GOALS, DEMO_SPENDING, DEMO_GIVING, validatePortfolioData,
+  DEMO_GOALS, DEMO_SPENDING, DEMO_GIVING, normalizePortfolioData,
+  normalizeSpendingMonth, normalizeSpendingMonths, validatePortfolioData,
 } from '../utils/financeData';
 
 const STORAGE_KEY = 'opticon_portfolio';
+const EMPTY_PORTFOLIO = {
+  holdings: DEMO_HOLDINGS,
+  accounts: DEMO_ACCOUNTS,
+  budget: DEMO_BUDGET,
+  debt: DEMO_DEBT,
+  goals: DEMO_GOALS,
+  spending: DEMO_SPENDING,
+  giving: DEMO_GIVING,
+};
 
 function loadFromStorage() {
   try {
@@ -12,7 +22,7 @@ function loadFromStorage() {
     if (!raw) return null;
     const data = JSON.parse(raw);
     const { valid } = validatePortfolioData(data);
-    return valid ? data : null;
+    return valid ? normalizePortfolioData(data) : null;
   } catch {
     return null;
   }
@@ -33,7 +43,7 @@ async function fetchServerPortfolio() {
     const data = await res.json();
     if (data.empty) return null;
     const { valid } = validatePortfolioData(data);
-    return valid ? data : null;
+    return valid ? normalizePortfolioData(data) : null;
   } catch {
     return null;
   }
@@ -56,6 +66,14 @@ export function usePortfolio(stocks, isAuthenticated) {
   const [customData, setCustomData] = useState(() => loadFromStorage());
   const [serverLoaded, setServerLoaded] = useState(false);
   const isDemo = !customData;
+
+  const persistPortfolio = useCallback((nextData) => {
+    const normalized = normalizePortfolioData(nextData);
+    setCustomData(normalized);
+    saveToStorage(normalized);
+    if (isAuthenticated) pushToServer(normalized);
+    return normalized;
+  }, [isAuthenticated]);
 
   // Fetch from server when authenticated
   useEffect(() => {
@@ -105,56 +123,68 @@ export function usePortfolio(stocks, isAuthenticated) {
   const importData = useCallback((data) => {
     const { valid, error } = validatePortfolioData(data);
     if (!valid) return { success: false, error };
-    setCustomData(data);
-    saveToStorage(data);
-    if (isAuthenticated) pushToServer(data);
+    persistPortfolio(data);
     return { success: true };
-  }, [isAuthenticated]);
+  }, [persistPortfolio]);
 
   const importSpendingMonth = useCallback((monthData) => {
-    if (!monthData || typeof monthData !== 'object' || !monthData.month || typeof monthData.total !== 'number' || !monthData.categories || typeof monthData.categories !== 'object') {
+    const normalizedMonth = normalizeSpendingMonth(monthData);
+    if (!normalizedMonth) {
       return { success: false, error: 'Invalid statement data' };
     }
 
-    const base = customData || {
-      holdings: DEMO_HOLDINGS,
-      accounts: DEMO_ACCOUNTS,
-      budget: DEMO_BUDGET,
-      debt: DEMO_DEBT,
-      goals: DEMO_GOALS,
-      spending: DEMO_SPENDING,
-      giving: DEMO_GIVING,
-    };
+    const base = customData || EMPTY_PORTFOLIO;
 
     const nextSpending = [...(base.spending || [])]
-      .filter((entry) => entry.month !== monthData.month)
-      .concat({
-        month: monthData.month,
-        total: monthData.total,
-        categories: monthData.categories,
-        source: monthData.source,
-        sortKey: monthData.sortKey,
-      })
+      .filter((entry) => entry.month !== normalizedMonth.month)
+      .concat(normalizedMonth)
       .sort((a, b) => String(a.sortKey || a.month).localeCompare(String(b.sortKey || b.month)));
 
     const nextData = { ...base, spending: nextSpending };
-    setCustomData(nextData);
-    saveToStorage(nextData);
-    if (isAuthenticated) pushToServer(nextData);
+    persistPortfolio(nextData);
     return { success: true };
-  }, [customData, isAuthenticated]);
+  }, [customData, persistPortfolio]);
+
+  const syncSpendingMonths = useCallback((months) => {
+    if (!Array.isArray(months)) return { success: false, error: 'Invalid statement list' };
+
+    const validMonths = normalizeSpendingMonths(months);
+    if (validMonths.length === 0) return { success: true, changed: false };
+
+    const base = customData || EMPTY_PORTFOLIO;
+
+    const nextByMonth = new Map((base.spending || []).map((entry) => [entry.month, entry]));
+    let changed = false;
+
+    for (const monthData of validMonths) {
+      const nextEntry = monthData;
+      const prevEntry = nextByMonth.get(monthData.month);
+      if (JSON.stringify(prevEntry) !== JSON.stringify(nextEntry)) {
+        changed = true;
+        nextByMonth.set(monthData.month, nextEntry);
+      }
+    }
+
+    if (!changed) return { success: true, changed: false };
+
+    const nextData = {
+      ...base,
+      spending: Array.from(nextByMonth.values()).sort((a, b) => String(a.sortKey || a.month).localeCompare(String(b.sortKey || b.month))),
+    };
+    persistPortfolio(nextData);
+    return { success: true, changed: true };
+  }, [customData, persistPortfolio]);
 
   const exportData = useCallback(() => {
-    return customData || {
-      holdings: DEMO_HOLDINGS,
-      accounts: DEMO_ACCOUNTS,
-      budget: DEMO_BUDGET,
-      debt: DEMO_DEBT,
-      goals: DEMO_GOALS,
-      spending: DEMO_SPENDING,
-      giving: DEMO_GIVING,
-    };
+    return customData || EMPTY_PORTFOLIO;
   }, [customData]);
+
+  const saveData = useCallback((data) => {
+    const { valid, error } = validatePortfolioData(data);
+    if (!valid) return { success: false, error };
+    persistPortfolio(data);
+    return { success: true };
+  }, [persistPortfolio]);
 
   const resetToDemo = useCallback(() => {
     setCustomData(null);
@@ -179,7 +209,9 @@ export function usePortfolio(stocks, isAuthenticated) {
     isDemo,
     importData,
     importSpendingMonth,
+    syncSpendingMonths,
     exportData,
+    saveData,
     resetToDemo,
   };
 }

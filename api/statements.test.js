@@ -47,10 +47,10 @@ describe('statement helpers', () => {
 
     expect(summary.month).toBe('Feb 2026');
     expect(summary.categories).toEqual({
-      shopping: 707.17,
+      shopping: 750.23,
       apps: 136.6,
     });
-    expect(summary.total).toBe(843.77);
+    expect(summary.total).toBe(886.83);
   });
 
   it('classifies transfer and food merchants cleanly', () => {

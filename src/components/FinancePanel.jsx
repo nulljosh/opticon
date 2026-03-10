@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Card } from './ui';
 import { usePortfolio } from '../hooks/usePortfolio';
 import { formatCurrency } from '../utils/formatting';
@@ -140,12 +140,14 @@ function SpendingChart({ spending, t }) {
 export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
   const [tab, setTab] = useState('portfolio');
   const [importError, setImportError] = useState(null);
+  const [statementFiles, setStatementFiles] = useState([]);
+  const [statementLoading, setStatementLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const {
     holdings, accounts, budget, debt, goals, spending, giving,
     stocksValue, cashValue, totalDebt, totalIncome, totalExpenses,
-    surplus, netWorth, isDemo, importData, exportData, resetToDemo,
+    surplus, netWorth, isDemo, importData, importSpendingMonth, exportData, resetToDemo,
   } = usePortfolio(stocks, isAuthenticated);
 
   const handleImport = useCallback((e) => {
@@ -196,6 +198,38 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
     };
     reader.readAsText(file);
   }, [importData]);
+
+  useEffect(() => {
+    if (tab !== 'spending') return;
+    let active = true;
+
+    const loadStatements = async () => {
+      setStatementLoading(true);
+      try {
+        const res = await fetch('/api/statements');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!active) return;
+        setStatementFiles(Array.isArray(data?.statements) ? data.statements.filter((item) => item?.spendingMonth?.month) : []);
+      } catch {
+        if (!active) return;
+        setStatementFiles([]);
+      } finally {
+        if (active) setStatementLoading(false);
+      }
+    };
+
+    loadStatements();
+    return () => {
+      active = false;
+    };
+  }, [tab]);
+
+  const handleStatementImport = useCallback((statement) => {
+    setImportError(null);
+    const result = importSpendingMonth(statement?.spendingMonth);
+    if (!result.success) setImportError(result.error);
+  }, [importSpendingMonth]);
 
   const font = '-apple-system, BlinkMacSystemFont, system-ui, sans-serif';
   const sectionStyle = { padding: '16px 20px' };
@@ -462,6 +496,50 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
 
         {tab === 'spending' && (
           <>
+            <Card dark={dark} t={t} style={{ marginBottom: 16, padding: 20 }}>
+              <div style={labelStyle}>Import Statement</div>
+              <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 12 }}>
+                Pull a monthly spending summary from your saved statements folder.
+              </div>
+              {statementLoading ? (
+                <div style={{ fontSize: 12, color: t.textTertiary }}>Looking for statements...</div>
+              ) : statementFiles.length === 0 ? (
+                <div style={{ fontSize: 12, color: t.textTertiary }}>No statements found in Documents/Misc/statement.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {statementFiles.map((statement) => {
+                    const imported = spending.some((entry) => entry.month === statement.spendingMonth.month);
+                    return (
+                      <div key={statement.filename} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, background: t.glass, border: `1px solid ${t.border}` }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{statement.spendingMonth.month}</div>
+                          <div style={{ fontSize: 11, color: t.textTertiary }}>
+                            {statement.filename} · {formatCurrency(statement.spendingMonth.total, 'CAD')}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleStatementImport(statement)}
+                          style={{
+                            border: `1px solid ${t.border}`,
+                            background: imported ? t.text : t.glass,
+                            color: imported ? t.bg : t.text,
+                            borderRadius: 999,
+                            padding: '6px 12px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontFamily: font,
+                          }}
+                        >
+                          {imported ? 'Replace' : 'Import'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+
             <Card dark={dark} t={t} style={{ marginBottom: 16, padding: 20 }}>
               <div style={labelStyle}>Spending Trends</div>
               <SpendingChart spending={spending} t={t} />

@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 const DEFAULT_CENTER = { lat: 40.7128, lon: -74.0060 };
 const LAST_GEO_KEY = 'opticon_last_geo';
+const FRESH_GEO_MS = 30 * 60 * 1000;
+const FRESH_IP_MS = 5 * 60 * 1000;
 const GEO_DETAIL_ZOOM = 13.6;
 const CACHE_DETAIL_ZOOM = 13.2;
 const IP_FALLBACK_ZOOM = 11.5;
@@ -17,6 +19,10 @@ function loadStoredGeo() {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.lat !== 'number' || typeof parsed?.lon !== 'number') return null;
+    const age = typeof parsed?.ts === 'number' ? Date.now() - parsed.ts : Number.POSITIVE_INFINITY;
+    const isIpGuess = /\bip\b/i.test(parsed?.label || '');
+    const maxAge = isIpGuess ? FRESH_IP_MS : FRESH_GEO_MS;
+    if (age > maxAge) return null;
     return { lat: parsed.lat, lon: parsed.lon, label: parsed.label || 'Last known location' };
   } catch {
     return null;
@@ -127,9 +133,9 @@ function createMarker(maplibregl, map, markersArray, css, title, data, lon, lat,
   );
 }
 
-export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady, livePrices }) {
+function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady }) {
   const storedGeo = loadStoredGeo();
-  const initPos = storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : DEFAULT_CENTER;
+  const initPos = DEFAULT_CENTER;
 
   const [mapLegendOpen, setMapLegendOpen] = useState(false);
   const containerRef = useRef(null);
@@ -141,9 +147,9 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
   const pendingFlyRef = useRef(null);
 
   const [center, setCenter] = useState(initPos);
-  const [userPosition, setUserPosition] = useState(initPos);
-  const [locLabel, setLocLabel] = useState(storedGeo?.label || 'Locating…');
-  const [geoState, setGeoState] = useState(storedGeo ? 'cached' : 'checking');
+  const [userPosition, setUserPosition] = useState(null);
+  const [locLabel, setLocLabel] = useState('Locating…');
+  const [geoState, setGeoState] = useState('checking');
   const [payload, setPayload] = useState({ incidents: [], trafficIncidents: [], earthquakes: [], events: [], markets: [], newsArticles: [] });
   const [selected, setSelected] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -167,10 +173,25 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
     if (!navigator.geolocation) {
       setGeoState('unsupported');
       setLocLabel('Geolocation unsupported');
-      return;
+      return undefined;
     }
+    let resolved = false;
+    const bridgeTimer = storedGeo
+      ? setTimeout(() => {
+          if (resolved) return;
+          const next = { lat: storedGeo.lat, lon: storedGeo.lon };
+          setCenter(next);
+          setUserPosition(next);
+          setLocLabel(storedGeo.label || 'Recent location');
+          setGeoState('cached');
+          doFlyTo({ center: [next.lon, next.lat], zoom: CACHE_DETAIL_ZOOM, offset: [0, 120], duration: 700 });
+        }, 1500)
+      : null;
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        resolved = true;
+        if (bridgeTimer) clearTimeout(bridgeTimer);
         const next = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         setCenter(next);
         setUserPosition(next);
@@ -181,7 +202,16 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
         try { localStorage.setItem('opticon_geo_granted', '1'); sawGeoGrantedRef.current = true; } catch {}
       },
       async (geoErr) => {
+        resolved = true;
+        if (bridgeTimer) clearTimeout(bridgeTimer);
         setGeoState(geoErr?.code === 1 ? 'denied' : 'unavailable');
+        if (storedGeo) {
+          setCenter({ lat: storedGeo.lat, lon: storedGeo.lon });
+          setUserPosition({ lat: storedGeo.lat, lon: storedGeo.lon });
+          setLocLabel(storedGeo.label || 'Last known location');
+          doFlyTo({ center: [storedGeo.lon, storedGeo.lat], zoom: CACHE_DETAIL_ZOOM, offset: [0, 120], duration: 700 });
+          return;
+        }
         try {
           const json = await fetch('https://ipapi.co/json/').then(r => r.json());
           if (typeof json?.latitude === 'number' && typeof json?.longitude === 'number') {
@@ -199,11 +229,15 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
           setLocLabel('Location unavailable');
         }
       },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
-  }, [doFlyTo, persistGeo]);
+    return () => {
+      resolved = true;
+      if (bridgeTimer) clearTimeout(bridgeTimer);
+    };
+  }, [doFlyTo, persistGeo, storedGeo]);
 
-  useEffect(() => { requestLocation(); }, [requestLocation]);
+  useEffect(() => requestLocation(), [requestLocation]);
 
   useEffect(() => {
     if (!navigator.permissions?.query) return;
@@ -244,7 +278,7 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
             ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
             : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
           center: [initCenter.lon, initCenter.lat],
-          zoom: storedGeo ? CACHE_DETAIL_ZOOM : 10.6,
+          zoom: 10.6,
           interactive: true,
           attributionControl: false,
         });
@@ -335,12 +369,14 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
           createMarker(maplibregl, mapInstanceRef.current, userMarkersRef.current, css, title, data, lon, lat, setSelected);
 
         // User pin (Apple Maps drop pin style)
-        addUserMarker(
-          'width:14px;height:21px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 28 42\'><defs><radialGradient id=\'rg\' cx=\'40%25\' cy=\'35%25\' r=\'60%25\'><stop offset=\'0\' stop-color=\'%23ff6961\'/><stop offset=\'1\' stop-color=\'%23cc0000\'/></radialGradient><filter id=\'ds\'><feDropShadow dx=\'0\' dy=\'1.5\' stdDeviation=\'1.5\' flood-opacity=\'0.35\'/></filter></defs><ellipse cx=\'14\' cy=\'40\' rx=\'5\' ry=\'1.8\' fill=\'%23000\' opacity=\'.2\'/><line x1=\'14\' y1=\'22\' x2=\'14\' y2=\'39\' stroke=\'%23888\' stroke-width=\'2\' stroke-linecap=\'round\'/><circle cx=\'14\' cy=\'13\' r=\'12\' fill=\'url(%23rg)\' filter=\'url(%23ds)\'/><circle cx=\'11\' cy=\'10\' r=\'3.5\' fill=\'white\' opacity=\'.45\'/></svg>");background-size:contain;background-repeat:no-repeat;cursor:pointer;',
-          'you',
-          { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: mapsLink(userPosition.lat, userPosition.lon) },
-          userPosition.lon, userPosition.lat
-        );
+        if (userPosition) {
+          addUserMarker(
+            'width:14px;height:21px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 28 42\'><defs><radialGradient id=\'rg\' cx=\'40%25\' cy=\'35%25\' r=\'60%25\'><stop offset=\'0\' stop-color=\'%23ff6961\'/><stop offset=\'1\' stop-color=\'%23cc0000\'/></radialGradient><filter id=\'ds\'><feDropShadow dx=\'0\' dy=\'1.5\' stdDeviation=\'1.5\' flood-opacity=\'0.35\'/></filter></defs><ellipse cx=\'14\' cy=\'40\' rx=\'5\' ry=\'1.8\' fill=\'%23000\' opacity=\'.2\'/><line x1=\'14\' y1=\'22\' x2=\'14\' y2=\'39\' stroke=\'%23888\' stroke-width=\'2\' stroke-linecap=\'round\'/><circle cx=\'14\' cy=\'13\' r=\'12\' fill=\'url(%23rg)\' filter=\'url(%23ds)\'/><circle cx=\'11\' cy=\'10\' r=\'3.5\' fill=\'white\' opacity=\'.45\'/></svg>");background-size:contain;background-repeat:no-repeat;cursor:pointer;',
+            'you',
+            { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: mapsLink(userPosition.lat, userPosition.lon) },
+            userPosition.lon, userPosition.lat
+          );
+        }
 
         // Local activity pulse
         addUserMarker(
@@ -354,7 +390,7 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
       }
     })();
     return () => { userMarkersRef.current.forEach(m => m.remove()); userMarkersRef.current = []; };
-  }, [userPosition.lat, userPosition.lon, locLabel, geoState, mapLoaded]);
+  }, [userPosition, center.lat, center.lon, locLabel, geoState, mapLoaded]);
 
   // API-dependent markers
   useEffect(() => {
@@ -524,7 +560,7 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
       )}
       <button
         onClick={() => {
-          if (geoState !== 'granted') { requestLocation(); return; }
+          if (geoState !== 'granted' || !userPosition) { requestLocation(); return; }
           mapInstanceRef.current?.flyTo({ center: [userPosition.lon, userPosition.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 900 });
         }}
         aria-label="Recenter to my location"
@@ -553,3 +589,5 @@ export default function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapRe
     </div>
   );
 }
+
+export default memo(LiveMapBackdrop);

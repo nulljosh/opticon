@@ -33,6 +33,15 @@ const DEFAULT_SYMBOLS = [
   'SPY', 'SJIM', 'LJIM',
 ];
 const STALE_AFTER_MS = 2 * 60 * 1000;
+const MAX_SYMBOLS_PER_REQUEST = 100;
+
+function chunkSymbols(symbolList, size = MAX_SYMBOLS_PER_REQUEST) {
+  const chunks = [];
+  for (let i = 0; i < symbolList.length; i += size) {
+    chunks.push(symbolList.slice(i, i + size));
+  }
+  return chunks;
+}
 
 // Retry helper with exponential backoff
 const fetchWithRetry = async (url, maxRetries = 3, baseDelay = 1000) => {
@@ -236,9 +245,20 @@ export function useStocks(symbols = DEFAULT_SYMBOLS, { enabled = true } = {}) {
         throw new Error('Invalid symbols: must be a non-empty array');
       }
 
-      const raw = await fetchWithRetry(`/api/stocks-free?symbols=${symbols.join(',')}`);
-      const stockMap = parseStockData(raw);
+      const chunks = chunkSymbols(symbols);
+      const chunkResponses = await Promise.all(
+        chunks.map((chunk) => fetchWithRetry(`/api/stocks-free?symbols=${chunk.join(',')}`))
+      );
+      const stockMap = chunkResponses.reduce((merged, raw) => {
+        const parsed = parseStockData(raw);
+        if (parsed) Object.assign(merged, parsed);
+        return merged;
+      }, {});
+
       if (!stockMap) throw new Error('No valid stock data received from any API');
+      if (Object.keys(stockMap).length === 0) {
+        throw new Error('No valid stock data received from any API');
+      }
 
       setStocks(stockMap);
       setError(null);

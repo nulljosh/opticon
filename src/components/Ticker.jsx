@@ -1,137 +1,198 @@
-import { memo, useRef, useState, useEffect } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { formatPrice } from '../utils/math';
 
+const SPEED_PX_PER_SEC = 96;
+
+function normalizeOffset(offset, segmentWidth) {
+  if (!segmentWidth) return 0;
+  let next = offset % segmentWidth;
+  if (next > 0) next -= segmentWidth;
+  return next;
+}
+
 const Ticker = memo(({ items, theme }) => {
-  const scrollRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
+  const trackRef = useRef(null);
+  const segmentRef = useRef(null);
   const animationRef = useRef(null);
-  const dragDistance = useRef(0);
+  const offsetRef = useRef(0);
+  const lastFrameRef = useRef(0);
+  const dragStartXRef = useRef(0);
+  const dragStartOffsetRef = useRef(0);
+  const dragDistanceRef = useRef(0);
+  const segmentWidthRef = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [segmentVersion, setSegmentVersion] = useState(0);
 
-  // Auto-scroll animation
+  const applyOffset = useCallback(() => {
+    if (trackRef.current) {
+      trackRef.current.style.transform = `translate3d(${offsetRef.current}px, 0, 0)`;
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!segmentRef.current) return undefined;
+
+    const updateWidth = () => {
+      const nextWidth = Math.round(segmentRef.current?.getBoundingClientRect().width || 0);
+      if (!nextWidth) return;
+      segmentWidthRef.current = nextWidth;
+      offsetRef.current = normalizeOffset(offsetRef.current, nextWidth);
+      applyOffset();
+      setSegmentVersion((v) => v + 1);
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver !== 'function') return undefined;
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(segmentRef.current);
+    return () => observer.disconnect();
+  }, [items, applyOffset]);
+
   useEffect(() => {
-    const container = scrollRef.current;
-    if (!container || isDragging || isHovered) return;
+    if (isDragging || items.length === 0 || !segmentWidthRef.current) return undefined;
 
-    let scrollPos = container.scrollLeft;
-    const maxScroll = container.scrollWidth - container.clientWidth;
+    const animate = (now) => {
+      if (!lastFrameRef.current) lastFrameRef.current = now;
+      const deltaMs = now - lastFrameRef.current;
+      lastFrameRef.current = now;
 
-    const animate = () => {
-      scrollPos += 0.5; // Scroll speed
-      if (scrollPos >= maxScroll / 2) {
-        scrollPos = 0; // Reset to start for infinite scroll
-      }
-      container.scrollLeft = scrollPos;
+      offsetRef.current = normalizeOffset(
+        offsetRef.current - ((deltaMs / 1000) * SPEED_PX_PER_SEC),
+        segmentWidthRef.current
+      );
+      applyOffset();
       animationRef.current = requestAnimationFrame(animate);
     };
 
     animationRef.current = requestAnimationFrame(animate);
-
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      lastFrameRef.current = 0;
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isDragging, isHovered, items]);
+  }, [applyOffset, isDragging, items, segmentVersion]);
 
-  const handleMouseDown = (e) => {
+  const stopDragging = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handlePointerDown = (e) => {
+    if (!items.length) return;
+    dragDistanceRef.current = 0;
+    dragStartXRef.current = e.clientX;
+    dragStartOffsetRef.current = offsetRef.current;
     setIsDragging(true);
-    dragDistance.current = 0;
-    setStartX(e.pageX - scrollRef.current.offsetLeft);
-    setScrollLeft(scrollRef.current.scrollLeft);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startX) * 2;
-    dragDistance.current += Math.abs(walk);
-    scrollRef.current.scrollLeft = scrollLeft - walk;
+  const handlePointerMove = (e) => {
+    if (!isDragging || !segmentWidthRef.current) return;
+    const delta = e.clientX - dragStartXRef.current;
+    dragDistanceRef.current = Math.max(dragDistanceRef.current, Math.abs(delta));
+    offsetRef.current = normalizeOffset(dragStartOffsetRef.current + delta, segmentWidthRef.current);
+    applyOffset();
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
+  const handlePointerUp = (e) => {
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    stopDragging();
   };
 
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-    setIsHovered(false);
-  };
-
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
+  const renderItem = (item, idx, clone = 0) => (
+    <a
+      key={`${item.key}-${clone}-${idx}`}
+      href={`https://finance.yahoo.com/quote/${item.name}/`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => {
+        if (dragDistanceRef.current > 5) e.preventDefault();
+      }}
+      style={{
+        display: 'flex',
+        gap: 6,
+        fontSize: 12,
+        opacity: 0.82,
+        textDecoration: 'none',
+        color: 'inherit',
+        flex: '0 0 auto',
+      }}
+    >
+      <span style={{ fontWeight: 600 }}>{item.name}</span>
+      <span>${formatPrice(item.price || 0)}</span>
+      <span style={{ color: (item.change || 0) >= 0 ? theme.green : theme.red }}>
+        {(item.change || 0) >= 0 ? '▲' : '▼'}{Math.abs(item.change || 0).toFixed(2)}%
+      </span>
+    </a>
+  );
 
   return (
     <div
-      ref={scrollRef}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      className="ticker-container"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={stopDragging}
+      onPointerLeave={stopDragging}
       style={{
-        overflowX: 'auto',
+        overflow: 'hidden',
         borderBottom: `0.5px solid ${theme.border}`,
-        background: theme.bg, color: theme.text,
+        background: '#000',
+        color: theme.text,
         cursor: isDragging ? 'grabbing' : 'grab',
-        WebkitOverflowScrolling: 'touch',
         userSelect: 'none',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none'
+        width: '100%',
+        maxWidth: '100%',
+        touchAction: 'pan-x',
       }}
     >
-      <style>{`
-        .ticker-container::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
-      <div style={{
-        display: 'flex',
-        gap: 24,
-        padding: '8px 16px',
-        whiteSpace: 'nowrap',
-        minWidth: 'max-content'
-      }}>
-        {[...Array(4)].map((_, idx) => (
-          <div key={idx} style={{ display: 'flex', gap: 24 }}>
-            {items.map(item => (
-              <a
-                key={`${item.key}-${idx}`}
-                href={`https://finance.yahoo.com/quote/${item.name}/`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => { if (dragDistance.current > 5) e.preventDefault(); }}
-                style={{ display: 'flex', gap: 6, fontSize: 12, opacity: 0.8, textDecoration: 'none', color: 'inherit', cursor: isDragging ? 'grabbing' : 'pointer' }}
-              >
-                <span style={{ fontWeight: 600 }}>{item.name}</span>
-                <span>${formatPrice(item.price || 0)}</span>
-                <span style={{ color: (item.change || 0) >= 0 ? theme.green : theme.red }}>
-                  {(item.change || 0) >= 0 ? '▲' : '▼'}{Math.abs(item.change || 0).toFixed(2)}%
-                </span>
-              </a>
-            ))}
-          </div>
-        ))}
+      <div
+        ref={trackRef}
+        style={{
+          display: 'flex',
+          width: 'max-content',
+          willChange: 'transform',
+        }}
+      >
+        <div
+          ref={segmentRef}
+          style={{
+            display: 'flex',
+            gap: 24,
+            padding: '8px 16px',
+            whiteSpace: 'nowrap',
+            flex: '0 0 auto',
+          }}
+        >
+          {items.map((item, idx) => renderItem(item, idx))}
+        </div>
+        <div
+          aria-hidden="true"
+          style={{
+            display: 'flex',
+            gap: 24,
+            padding: '8px 16px',
+            whiteSpace: 'nowrap',
+            flex: '0 0 auto',
+          }}
+        >
+          {items.map((item, idx) => renderItem(item, idx, 1))}
+        </div>
       </div>
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Only re-render if items actually changed (deep comparison of prices)
   if (prevProps.items.length !== nextProps.items.length) return false;
 
   for (let i = 0; i < prevProps.items.length; i++) {
     const prev = prevProps.items[i];
     const next = nextProps.items[i];
-    if (prev.price !== next.price || prev.change !== next.change) {
-      return false; // Props changed, do re-render
+    if (prev.key !== next.key || prev.price !== next.price || prev.change !== next.change) {
+      return false;
     }
   }
 
-  return true; // Props same, skip re-render
+  return true;
 });
 
 Ticker.displayName = 'Ticker';

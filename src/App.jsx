@@ -166,13 +166,27 @@ export default function App() {
   const [showPricing, setShowPricing] = useState(false);
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const handleMobileTabSelect = useCallback((nextTab) => {
+    const isSameTab = activeTab === nextTab;
+    if (!isSameTab) {
+      setActiveTab(nextTab);
+      setMobilePanelOpen(true);
+    } else {
+      setMobilePanelOpen((open) => !open);
+    }
+    setMobileTabsOpen(false);
+  }, [activeTab]);
   // Escape key dismisses mobile panel
   useEffect(() => {
-    if (!mobilePanelOpen) return;
-    const handler = (e) => { if (e.key === 'Escape') setMobilePanelOpen(false); };
+    if (!mobilePanelOpen && !mobileTabsOpen) return;
+    const handler = (e) => {
+      if (e.key !== 'Escape') return;
+      setMobilePanelOpen(false);
+      setMobileTabsOpen(false);
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [mobilePanelOpen]);
+  }, [mobilePanelOpen, mobileTabsOpen]);
   const [isMobileNav, setIsMobileNav] = useState(() => window.matchMedia('(max-width: 768px)').matches);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -893,10 +907,7 @@ const reset = useCallback(() => {
 
   // P&L background tint: progressively greener from $1 → $1T
   const pnlBg = (() => {
-    if (balance <= 0.5) return 'linear-gradient(rgba(255,69,58,0.16),rgba(255,69,58,0.16))';
-    if (balance < 1.001) return 'transparent';
-    const opacity = bgProgress * 0.24;
-    return `linear-gradient(rgba(48,209,88,${opacity.toFixed(3)}),rgba(48,209,88,${opacity.toFixed(3)}))`;
+    return 'transparent';
   })();
 
   // Keep hero text shadow stable during live ticks to avoid perceived flashing.
@@ -965,10 +976,109 @@ const reset = useCallback(() => {
   } : null;
 
   const TAB_PILLS = [
-    { key: 'simulator', label: 'SIM' },
-    { key: 'portfolio', label: 'PORT' },
-    { key: 'situation', label: 'SIT' },
+    { key: 'simulator', label: 'Simulator' },
+    { key: 'portfolio', label: 'Portfolio' },
+    { key: 'situation', label: 'Situation' },
   ];
+
+  const simulatorPanel = (
+    <div style={{
+      minHeight: isMobileNav ? 'calc(60vh - 52px)' : '100%',
+      padding: isMobileNav ? '20px 18px 28px' : '32px 24px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      textAlign: 'center',
+    }}>
+      {busted ? (
+        <div style={{ width: '100%' }}>
+          <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1 }}>BUSTED</div>
+          <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 8 }}>
+            {formatNumber(balance)} -- {realWorldTime(tick)} of trading -- {exits.length} trades
+          </div>
+        </div>
+      ) : won ? (
+        <div style={{ width: '100%' }}>
+          <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.green, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1 }}>
+            {targetTrillion ? '$1T' : '$1B'}
+          </div>
+          <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 8 }}>
+            {exits.length} trades -- {winRate.toFixed(0)}% wins -- {formatTime(elapsedTime)}
+          </div>
+        </div>
+      ) : (
+        <div style={{ width: '100%' }}>
+          <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1, textShadow: heroTextShadow }}>
+            {formatNumber(equity)}
+          </div>
+          <div style={{ fontSize: 13, marginTop: 8 }}>
+            <span style={{ color: pnl >= 0 ? pnlGreen : t.red }}>
+              {pnl >= 0 ? '+' : ''}{formatNumber(Math.abs(pnl)).replace('$', '')}
+            </span>
+            {position
+              ? <span style={{ color: t.textSecondary, fontSize: 12 }}> -- in {position.sym}</span>
+              : <span style={{ color: t.textTertiary, fontSize: 12 }}> -- {winRate.toFixed(0)}% WR -- {exits.length} trades</span>
+            }
+          </div>
+        </div>
+      )}
+
+      <div style={{ textAlign: 'center', marginTop: 18, marginBottom: showChart ? 12 : 0 }}>
+        <button
+          onClick={() => setShowChart(!showChart)}
+          style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: '5px 14px', fontSize: 11, color: t.textSecondary, cursor: 'pointer', fontFamily: font }}
+        >
+          {showChart ? 'Hide Chart' : 'Show Chart'}
+        </button>
+      </div>
+
+      {showChart && (
+        <div style={{ width: '100%', maxWidth: 340, background: t.surface, borderRadius: 14, padding: 14, marginBottom: 16 }}>
+          <svg width="100%" height="120" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+            <line x1="0" y1={toY(0)} x2={W} y2={toY(0)} stroke={t.border} strokeDasharray="4" />
+            {SYMS.map(sym => prices[sym].length > 1 && (
+              <path
+                key={sym}
+                d={makePath(sym)}
+                fill="none"
+                stroke={ASSETS[sym].color}
+                strokeWidth={position?.sym === sym ? 2.5 : 1}
+                opacity={position ? (position.sym === sym ? 1 : 0.15) : 0.5}
+              />
+            ))}
+          </svg>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: showChart ? 0 : 16 }}>
+        <button
+          onClick={() => setRunning(!running)}
+          disabled={busted || won}
+          style={{ padding: '12px 32px', borderRadius: 100, border: 'none', fontSize: 14, fontWeight: 600, fontFamily: font, background: (busted || won) ? t.border : running ? t.red : t.green, color: '#fff', cursor: (busted || won) ? 'default' : 'pointer', minWidth: 120 }}
+        >
+          {busted ? 'Busted' : won ? 'Won!' : running ? 'Stop' : 'Start'}
+        </button>
+        <button
+          onClick={reset}
+          style={{ padding: '12px 18px', borderRadius: 100, border: `1px solid ${t.border}`, background: 'transparent', color: t.textSecondary, fontFamily: font, fontSize: 18, cursor: 'pointer' }}
+        >
+          ↺
+        </button>
+      </div>
+      <div style={{ fontSize: 10, color: t.textTertiary, marginTop: 10, textAlign: 'center' }}>
+        [Space] Start/Stop -- [R] Reset
+      </div>
+    </div>
+  );
+
+  const glassButton = {
+    background: dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.72)',
+    border: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.85)'}`,
+    backdropFilter: 'blur(18px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+    boxShadow: dark ? '0 8px 24px rgba(0,0,0,0.28)' : '0 10px 26px rgba(15,23,42,0.08)',
+  };
 
   return (
     <div className="opticon-root" style={{
@@ -984,13 +1094,14 @@ const reset = useCallback(() => {
       transition: running ? 'none' : 'background-color 220ms ease, background-image 220ms ease',
     }}>
       <style>{`
-        .opticon-ticker, .opticon-header, .opticon-footer, .opticon-panel { display: none; }
+        .opticon-ticker { display: block; }
+        .opticon-header, .opticon-footer, .opticon-panel { display: none; }
         .opticon-mobile-nav { display: flex; }
         .opticon-root {
-          grid-template-rows: 1fr !important;
+          grid-template-rows: auto 1fr !important;
           grid-template-columns: 1fr !important;
         }
-        .opticon-map { grid-row: 1; grid-column: 1; }
+        .opticon-map { grid-row: 2; grid-column: 1; }
         .opticon-mobile-panel {
           display: none;
           position: fixed;
@@ -1029,7 +1140,7 @@ const reset = useCallback(() => {
       </div>
 
       {/* Header */}
-      <header className="opticon-header" style={{ gridColumn: '1 / -1', padding: '10px 16px', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
+      <header className="opticon-header" style={{ gridColumn: '1 / -1', padding: '10px 16px', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${t.border}`, background: dark ? 'rgba(2,6,23,0.55)' : 'rgba(255,255,255,0.62)', backdropFilter: 'blur(24px) saturate(170%)', WebkitBackdropFilter: 'blur(24px) saturate(170%)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: t.text, fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>opticon</span>
           <span style={{ width: 1, height: 14, background: t.border, marginLeft: 8 }} />
@@ -1052,9 +1163,13 @@ const reset = useCallback(() => {
                 onClick={() => setActiveTab(pill.key)}
                 style={{
                   padding: '4px 10px', borderRadius: 100, fontSize: 10, fontWeight: 600,
-                  fontFamily: font, cursor: 'pointer', border: 'none',
-                  background: activeTab === pill.key ? t.text : t.glass,
-                  color: activeTab === pill.key ? t.bg : t.textSecondary,
+                  fontFamily: font, cursor: 'pointer',
+                  background: activeTab === pill.key ? (dark ? 'rgba(255,255,255,0.92)' : 'rgba(15,23,42,0.92)') : glassButton.background,
+                  color: activeTab === pill.key ? (dark ? '#020617' : '#ffffff') : t.textSecondary,
+                  border: activeTab === pill.key ? '1px solid transparent' : glassButton.border,
+                  backdropFilter: 'blur(16px) saturate(150%)',
+                  WebkitBackdropFilter: 'blur(16px) saturate(150%)',
+                  boxShadow: activeTab === pill.key ? '0 10px 24px rgba(0,0,0,0.18)' : glassButton.boxShadow,
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -1069,7 +1184,7 @@ const reset = useCallback(() => {
               {isFree && (
                 <button
                   onClick={() => setShowPricing(true)}
-                  style={{ background: '#0071e3', border: 'none', borderRadius: 6, padding: '5px 10px', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                  style={{ background: 'rgba(0,113,227,0.82)', border: '1px solid rgba(125,211,252,0.24)', borderRadius: 9999, padding: '5px 12px', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)', backdropFilter: 'blur(16px) saturate(150%)', WebkitBackdropFilter: 'blur(16px) saturate(150%)', boxShadow: '0 10px 24px rgba(0,113,227,0.28)' }}
                   onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
                   onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                 >
@@ -1079,7 +1194,7 @@ const reset = useCallback(() => {
               <button
                 onClick={() => setDark(!dark)}
                 aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-                style={{ background: t.surface, border: 'none', borderRadius: 6, padding: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ ...glassButton, borderRadius: 9999, padding: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   {dark ? (
@@ -1091,7 +1206,7 @@ const reset = useCallback(() => {
               </button>
               <button
                 onClick={logout}
-                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 6, padding: '5px 10px', color: '#ef4444', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: font }}
+                style={{ background: 'rgba(127,29,29,0.28)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 9999, padding: '5px 12px', color: '#f87171', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: font, backdropFilter: 'blur(16px) saturate(150%)', WebkitBackdropFilter: 'blur(16px) saturate(150%)', boxShadow: '0 10px 24px rgba(127,29,29,0.22)' }}
               >
                 LOGOUT
               </button>
@@ -1125,13 +1240,12 @@ const reset = useCallback(() => {
       </header>
 
       {/* Map cell */}
-      <div className="opticon-map" style={{ gridColumn: '1 / -1', height: '100%', position: 'relative', overflow: 'hidden', minHeight: 0 }}>
+      <div className="opticon-map" style={{ gridColumn: isMobileNav ? '1 / -1' : '1', height: '100%', position: 'relative', overflow: 'hidden', minHeight: 0 }}>
         <LiveMapBackdrop
           dark={dark}
           mapLayers={mapLayers}
           setMapLayers={setMapLayers}
           onMapReady={handleMapReady}
-          livePrices={liveAssets}
         />
         {/* Floating mobile nav */}
         <div className="opticon-mobile-nav" style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 5, justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'none' }}>
@@ -1161,7 +1275,7 @@ const reset = useCallback(() => {
                 {TAB_PILLS.map(pill => (
                   <button
                     key={pill.key}
-                    onClick={() => { setActiveTab(pill.key); setMobilePanelOpen(true); setMobileTabsOpen(false); }}
+                    onClick={() => handleMobileTabSelect(pill.key)}
                     style={{
                       padding: '6px 14px', borderRadius: 8, fontSize: 10, fontWeight: 600,
                       fontFamily: font, cursor: 'pointer', border: 'none', textAlign: 'left',
@@ -1178,7 +1292,21 @@ const reset = useCallback(() => {
           </div>
           {/* Right: hamburger menu */}
           <div style={{ pointerEvents: 'auto' }}>
-            <MobileMenu t={t} font={font}>
+            <MobileMenu
+              t={t}
+              font={font}
+              buttonStyle={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                border: 'none',
+                padding: 0,
+                background: dark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+              }}
+            >
               {weather && (
                 <>
                   <MobileMenuItem t={t} font={font} style={{ color: t.textTertiary, fontSize: 11, cursor: 'default' }}>
@@ -1205,91 +1333,8 @@ const reset = useCallback(() => {
       </div>
 
       {/* Panel cell */}
-      <div className="opticon-panel" style={{ gridColumn: '1 / -1', overflow: 'auto', minHeight: 0 }}>
-        {activeTab === 'simulator' && (
-          <div style={{ padding: 16 }}>
-            {busted ? (
-              <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1 }}>BUSTED</div>
-                <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 8 }}>
-                  {formatNumber(balance)} -- {realWorldTime(tick)} of trading -- {exits.length} trades
-                </div>
-              </div>
-            ) : won ? (
-              <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.green, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1 }}>
-                  {targetTrillion ? '$1T' : '$1B'}
-                </div>
-                <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 8 }}>
-                  {exits.length} trades -- {winRate.toFixed(0)}% wins -- {formatTime(elapsedTime)}
-                </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1, textShadow: heroTextShadow }}>
-                  {formatNumber(equity)}
-                </div>
-                <div style={{ fontSize: 13, marginTop: 8 }}>
-                  <span style={{ color: pnl >= 0 ? pnlGreen : t.red }}>
-                    {pnl >= 0 ? '+' : ''}{formatNumber(Math.abs(pnl)).replace('$', '')}
-                  </span>
-                  {position
-                    ? <span style={{ color: t.textSecondary, fontSize: 12 }}> -- in {position.sym}</span>
-                    : <span style={{ color: t.textTertiary, fontSize: 12 }}> -- {winRate.toFixed(0)}% WR -- {exits.length} trades</span>
-                  }
-                </div>
-              </div>
-            )}
-
-            {/* Chart toggle */}
-            <div style={{ textAlign: 'center', marginBottom: showChart ? 12 : 0 }}>
-              <button
-                onClick={() => setShowChart(!showChart)}
-                style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: '5px 14px', fontSize: 11, color: t.textSecondary, cursor: 'pointer', fontFamily: font }}
-              >
-                {showChart ? 'Hide Chart' : 'Show Chart'}
-              </button>
-            </div>
-
-            {showChart && (
-              <div style={{ background: t.surface, borderRadius: 14, padding: 14, marginBottom: 16 }}>
-                <svg width="100%" height="120" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-                  <line x1="0" y1={toY(0)} x2={W} y2={toY(0)} stroke={t.border} strokeDasharray="4" />
-                  {SYMS.map(sym => prices[sym].length > 1 && (
-                    <path
-                      key={sym}
-                      d={makePath(sym)}
-                      fill="none"
-                      stroke={ASSETS[sym].color}
-                      strokeWidth={position?.sym === sym ? 2.5 : 1}
-                      opacity={position ? (position.sym === sym ? 1 : 0.15) : 0.5}
-                    />
-                  ))}
-                </svg>
-              </div>
-            )}
-
-            {/* Start / Stop + Reset */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
-              <button
-                onClick={() => setRunning(!running)}
-                disabled={busted || won}
-                style={{ padding: '12px 32px', borderRadius: 100, border: 'none', fontSize: 14, fontWeight: 600, fontFamily: font, background: (busted || won) ? t.border : running ? t.red : t.green, color: '#fff', cursor: (busted || won) ? 'default' : 'pointer', minWidth: 120 }}
-              >
-                {busted ? 'Busted' : won ? 'Won!' : running ? 'Stop' : 'Start'}
-              </button>
-              <button
-                onClick={reset}
-                style={{ padding: '12px 18px', borderRadius: 100, border: `1px solid ${t.border}`, background: 'transparent', color: t.textSecondary, fontFamily: font, fontSize: 18, cursor: 'pointer' }}
-              >
-                ↺
-              </button>
-            </div>
-            <div style={{ fontSize: 10, color: t.textTertiary, marginTop: 8, textAlign: 'center' }}>
-              [Space] Start/Stop -- [R] Reset
-            </div>
-          </div>
-        )}
+      <div className="opticon-panel" style={{ gridColumn: isMobileNav ? '1 / -1' : '2', overflow: 'auto', minHeight: 0 }}>
+        {activeTab === 'simulator' && simulatorPanel}
 
         {activeTab === 'portfolio' && (
           <FinancePanel dark={dark} t={t} stocks={stocks} isAuthenticated={isAuthenticated} />
@@ -1310,10 +1355,25 @@ const reset = useCallback(() => {
         )}
       </div>
 
+      {/* Mobile tabs backdrop */}
+      {isMobileNav && mobileTabsOpen && (
+        <div
+          onClick={() => setMobileTabsOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'transparent',
+            zIndex: 4,
+          }}
+        />
+      )}
       {/* Mobile bottom sheet backdrop */}
       {isMobileNav && mobilePanelOpen && (
         <div
-          onClick={() => setMobilePanelOpen(false)}
+          onClick={() => {
+            setMobilePanelOpen(false);
+            setMobileTabsOpen(false);
+          }}
           style={{
             position: 'fixed',
             inset: 0,
@@ -1353,57 +1413,7 @@ const reset = useCallback(() => {
               }}
             >{'\u00d7'}</button>
           </div>
-          {activeTab === 'simulator' && (
-            <div style={{ padding: 16 }}>
-              {busted ? (
-                <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                  <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1 }}>BUSTED</div>
-                  <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 8 }}>
-                    {formatNumber(balance)} -- {realWorldTime(tick)} of trading -- {exits.length} trades
-                  </div>
-                </div>
-              ) : won ? (
-                <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                  <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.green, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1 }}>
-                    {targetTrillion ? '$1T' : '$1B'}
-                  </div>
-                  <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 8 }}>
-                    {exits.length} trades -- {winRate.toFixed(0)}% wins -- {formatTime(elapsedTime)}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                  <div style={{ fontSize: 'clamp(36px, 8vw, 56px)', fontWeight: 700, color: t.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-2px', lineHeight: 1, textShadow: heroTextShadow }}>
-                    {formatNumber(equity)}
-                  </div>
-                  <div style={{ fontSize: 13, marginTop: 8 }}>
-                    <span style={{ color: pnl >= 0 ? pnlGreen : t.red }}>
-                      {pnl >= 0 ? '+' : ''}{formatNumber(Math.abs(pnl)).replace('$', '')}
-                    </span>
-                    {position
-                      ? <span style={{ color: t.textSecondary, fontSize: 12 }}> -- in {position.sym}</span>
-                      : <span style={{ color: t.textTertiary, fontSize: 12 }}> -- {winRate.toFixed(0)}% WR -- {exits.length} trades</span>
-                    }
-                  </div>
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
-                <button
-                  onClick={() => setRunning(!running)}
-                  disabled={busted || won}
-                  style={{ padding: '12px 32px', borderRadius: 100, border: 'none', fontSize: 14, fontWeight: 600, fontFamily: font, background: (busted || won) ? t.border : running ? t.red : t.green, color: '#fff', cursor: (busted || won) ? 'default' : 'pointer', minWidth: 120 }}
-                >
-                  {busted ? 'Busted' : won ? 'Won!' : running ? 'Stop' : 'Start'}
-                </button>
-                <button
-                  onClick={reset}
-                  style={{ padding: '12px 18px', borderRadius: 100, border: `1px solid ${t.border}`, background: 'transparent', color: t.textSecondary, fontFamily: font, fontSize: 18, cursor: 'pointer' }}
-                >
-                  ↺
-                </button>
-              </div>
-            </div>
-          )}
+          {activeTab === 'simulator' && simulatorPanel}
           {activeTab === 'portfolio' && (
             <FinancePanel dark={dark} t={t} stocks={stocks} isAuthenticated={isAuthenticated} />
           )}

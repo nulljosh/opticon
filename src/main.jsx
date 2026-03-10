@@ -4,6 +4,11 @@ import './index.css'
 import App from './App.jsx'
 import { ErrorBoundary } from './ErrorBoundary.jsx'
 
+if (import.meta.env.DEV && (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
+  navigator.serviceWorker?.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+}
+
 if (new URLSearchParams(window.location.search).has('clear-sw')) {
   navigator.serviceWorker?.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
   caches.keys().then(keys => keys.forEach(k => caches.delete(k)));

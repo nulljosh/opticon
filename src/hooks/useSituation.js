@@ -12,12 +12,31 @@ export const WORLD_CITIES = [
 const FLIGHT_REFRESH    = 15_000;
 const TRAFFIC_REFRESH   = 60_000;
 const SITUATION_REFRESH = 5 * 60_000;
+const LAST_GEO_KEY = 'opticon_last_geo';
+const FRESH_GEO_MS = 30 * 60 * 1000;
+const FRESH_IP_MS = 5 * 60 * 1000;
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV ? 'https://opticon-production.vercel.app' : '');
 
 function apiPath(path) {
   return `${API_BASE}${path}`;
+}
+
+function getStoredGeo() {
+  try {
+    const raw = localStorage.getItem(LAST_GEO_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.lat !== 'number' || typeof parsed?.lon !== 'number') return null;
+    const age = typeof parsed?.ts === 'number' ? Date.now() - parsed.ts : Number.POSITIVE_INFINITY;
+    const isIpGuess = /\bip\b/i.test(parsed?.label || '');
+    const maxAge = isIpGuess ? FRESH_IP_MS : FRESH_GEO_MS;
+    if (age > maxAge) return null;
+    return { lat: parsed.lat, lon: parsed.lon, city: parsed.label || 'Last known location' };
+  } catch {
+    return null;
+  }
 }
 
 function bboxFromCenter(lat, lon, deg = 2) {
@@ -39,7 +58,7 @@ async function fetchWithTimeout(url, ms = 8000) {
 }
 
 export function useSituation() {
-  const [userLocation, setUserLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState(() => getStoredGeo());
   const [locationError, setLocationError] = useState(null);
   const [selectedCity, setSelectedCity] = useState(null);
 
@@ -66,6 +85,11 @@ export function useSituation() {
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') return;
+    const storedGeo = getStoredGeo();
+    if (storedGeo) {
+      setUserLocation(storedGeo);
+      return;
+    }
     fetchWithTimeout('https://ipapi.co/json/')
       .then(data => {
         if (typeof data.latitude === 'number' && typeof data.longitude === 'number') {

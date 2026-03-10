@@ -35,7 +35,7 @@ const mockGeoResponse = {
 
 function mockFetch() {
   global.fetch = vi.fn(url => {
-    if (url.includes('ip-api.com')) {
+    if (url.includes('ipapi.co')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
     }
     if (url.includes('/api/flights')) {
@@ -78,6 +78,7 @@ describe('WORLD_CITIES', () => {
 describe('useSituation', () => {
   beforeEach(() => {
     mockFetch();
+    localStorage.clear();
   });
 
   it('defaults to first world city center before geo resolves', () => {
@@ -85,6 +86,20 @@ describe('useSituation', () => {
     const { activeCenter } = result.current;
     expect(activeCenter.lat).toBe(WORLD_CITIES[0].lat);
     expect(activeCenter.lon).toBe(WORLD_CITIES[0].lon);
+  });
+
+  it('uses a fresh stored location before falling back to IP lookup', () => {
+    localStorage.setItem('opticon_last_geo', JSON.stringify({
+      lat: 49.2827,
+      lon: -123.1207,
+      label: 'Current location',
+      ts: Date.now(),
+    }));
+
+    const { result } = renderHook(() => useSituation());
+
+    expect(result.current.activeCenter.lat).toBe(49.2827);
+    expect(result.current.activeCenter.lon).toBe(-123.1207);
   });
 
   it('loads flights on mount', async () => {
@@ -115,7 +130,7 @@ describe('useSituation', () => {
   it('handles flight API failure gracefully', async () => {
     global.fetch = vi.fn(url => {
       if (url.includes('/api/flights')) return Promise.reject(new Error('Network error'));
-      if (url.includes('ip-api.com')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
+      if (url.includes('ipapi.co')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
       if (url.includes('/api/traffic')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockTrafficResponse) });
       return Promise.reject(new Error('Unknown'));
     });
@@ -129,7 +144,7 @@ describe('useSituation', () => {
   it('handles traffic API failure gracefully', async () => {
     global.fetch = vi.fn(url => {
       if (url.includes('/api/traffic')) return Promise.reject(new Error('TomTom down'));
-      if (url.includes('ip-api.com')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
+      if (url.includes('ipapi.co')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
       if (url.includes('/api/flights')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockFlightsResponse) });
       return Promise.reject(new Error('Unknown'));
     });
@@ -142,7 +157,7 @@ describe('useSituation', () => {
 
   it('handles geo API failure by using world city fallback', async () => {
     global.fetch = vi.fn(url => {
-      if (url.includes('ip-api.com')) return Promise.reject(new Error('Geo error'));
+      if (url.includes('ipapi.co')) return Promise.reject(new Error('Geo error'));
       if (url.includes('/api/flights')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockFlightsResponse) });
       if (url.includes('/api/traffic')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockTrafficResponse) });
       return Promise.reject(new Error('Unknown'));

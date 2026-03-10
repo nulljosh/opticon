@@ -111,6 +111,39 @@ export function usePortfolio(stocks, isAuthenticated) {
     return { success: true };
   }, [isAuthenticated]);
 
+  const importSpendingMonth = useCallback((monthData) => {
+    if (!monthData || typeof monthData !== 'object' || !monthData.month || typeof monthData.total !== 'number' || !monthData.categories || typeof monthData.categories !== 'object') {
+      return { success: false, error: 'Invalid statement data' };
+    }
+
+    const base = customData || {
+      holdings: DEMO_HOLDINGS,
+      accounts: DEMO_ACCOUNTS,
+      budget: DEMO_BUDGET,
+      debt: DEMO_DEBT,
+      goals: DEMO_GOALS,
+      spending: DEMO_SPENDING,
+      giving: DEMO_GIVING,
+    };
+
+    const nextSpending = [...(base.spending || [])]
+      .filter((entry) => entry.month !== monthData.month)
+      .concat({
+        month: monthData.month,
+        total: monthData.total,
+        categories: monthData.categories,
+        source: monthData.source,
+        sortKey: monthData.sortKey,
+      })
+      .sort((a, b) => String(a.sortKey || a.month).localeCompare(String(b.sortKey || b.month)));
+
+    const nextData = { ...base, spending: nextSpending };
+    setCustomData(nextData);
+    saveToStorage(nextData);
+    if (isAuthenticated) pushToServer(nextData);
+    return { success: true };
+  }, [customData, isAuthenticated]);
+
   const exportData = useCallback(() => {
     return customData || {
       holdings: DEMO_HOLDINGS,
@@ -145,6 +178,7 @@ export function usePortfolio(stocks, isAuthenticated) {
     netWorth,
     isDemo,
     importData,
+    importSpendingMonth,
     exportData,
     resetToDemo,
   };

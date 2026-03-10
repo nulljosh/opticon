@@ -1,83 +1,55 @@
-<div align="center">
-
+![Opticon](icon.svg)
 # Opticon
+![version](https://img.shields.io/badge/version-v2.3.1-blue)
 
-<img src="icon.svg" alt="Opticon" width="120" />
+Opticon is a live market and map app. It puts prices, news, and local activity on one screen.
 
-Financial terminal and situation monitor.
-
-[opticon.heyitsmejosh.com](https://opticon.heyitsmejosh.com)
-
-</div>
-
-![version](https://img.shields.io/badge/version-v2.3.0-blue)
+[Live site](https://opticon.heyitsmejosh.com)
 
 ## Architecture
 
 ![Architecture](architecture.svg)
 
-## Stack
+## What It Does
 
-- React 19, Vite, MapLibre GL
-- Vercel serverless gateway (25+ routes)
-- Vercel KV (auth, sessions, portfolio)
-- FMP + Yahoo Finance (stock data)
-- Polymarket, GDELT, USGS, CoinGecko
-- Stripe (billing)
+- Shows live stock prices in the top bar
+- Keeps the map front and center
+- Lets you switch between Simulator, Portfolio, and Situation views
+- Tries your real location first, then falls back if it has to
 
-## Dev
+## Run It
 
 ```bash
-npm install && npm run dev   # localhost:5173
-npm test -- --run && npm run build
-./push.sh                    # run checks + one production Vercel deploy
+npm install
+npm run dev
+npm test -- --run
+npm run build
 ```
 
-## Hosting
+## Deploy
 
-Current production is still Vercel-native. Deploy guidance and the Cloudflare migration target are documented in [docs/hosting.md](/Users/joshua/Documents/Code/opticon/docs/hosting.md).
-The top stock ticker now stays empty for a moment on first load and only fills in once real prices are ready.
+Production still runs on Vercel.
 
-## Roadmap
+There is also a Cloudflare preview path for later. The short version is simple:
 
-Use this section as the execution brief for Codex.
+- keep the site the same
+- let Cloudflare handle the API step by step
+- move the rest only after the preview feels solid
 
-### Status (March 10, 2026)
+More detail lives in [docs/hosting.md](/Users/joshua/Documents/Code/opticon/docs/hosting.md).
 
-- [x] Verify live market data end-to-end.
-  Done: the top stock ticker no longer shows old built-in prices while the page is loading.
-  Done: stock polling now runs for everyone, not just signed-in users.
-  Verify: production is live at [opticon.heyitsmejosh.com](https://opticon.heyitsmejosh.com) for a manual check in the browser.
+## What Changed Recently
 
-- [x] Verify polling and freshness behavior for every live API surface.
-  Done: normalized freshness/degraded metadata across stocks, markets, weather, flights, incidents, earthquakes, news, events, weather alerts, local events, and crime routes.
-  Done: verified current polling intervals in hooks/components: `useLivePrices` 5s, `usePolymarket` 30s, `useStocks` 60s, `useWeather` 10m, `useSituation` flights 15s / traffic 60s / broader situation 5m, `LiveMapBackdrop` 2m.
-  Verify: targeted tests passed for the route freshness contracts and stale/degraded fallback behavior.
+- The stock bar now waits for real prices instead of showing built-in ones first.
+- The stock bar stays visible on small screens.
+- The map now tries a fresh browser location before it falls back to an older saved spot or a rough guess.
 
-- [x] Tighten location-based monitoring coverage.
-  Done: local monitoring routes now return explicit degraded/stale/cache state instead of silent empty responses when upstream sources fail.
-  Verify: targeted tests cover a major-city path (`Vancouver`) and a small-town path (`Hope`) for [server/api/local-events.js](/Users/joshua/Documents/Code/opticon/server/api/local-events.js) and [server/api/crime.js](/Users/joshua/Documents/Code/opticon/server/api/crime.js).
+## Next
 
-- [x] Fix only high-confidence bugs found while doing the checks above.
-  Done: fixes were limited to response freshness/status contracts and stale-cache fallback behavior in live monitoring routes.
-  Verify: `vitest` roadmap suites passed and `vite build` passed.
-
-### Codex Prompt
-
-```text
-Repo: /Users/joshua/Documents/Code/opticon
-
-Read the Roadmap section in README.md and execute it in order.
-Constraints:
-- high-confidence fixes only
-- verify each change with targeted tests or direct local checks
-- do not expand scope beyond live API validation, polling/freshness, and location coverage
-- summarize exactly what changed and what remains
-```
+- Finish checking the Cloudflare preview
+- Keep smoothing out the phone layout
+- Move more hosting work only after the preview feels stable
 
 ## License
 
 MIT 2026, Joshua Trommel
-
-## Quick Commands
-- `./scripts/simplify.sh` - normalize project structure

@@ -71,7 +71,7 @@ export const StatusBar = ({ t, reliability }) => {
 // Mobile hamburger menu - glass dropdown overlay
 import { useState, useEffect, useCallback } from 'react';
 
-export const MobileMenu = ({ t, font, children }) => {
+export const MobileMenu = ({ t, font, children, buttonStyle }) => {
   const [open, setOpen] = useState(false);
 
   const close = useCallback(() => setOpen(false), []);
@@ -98,6 +98,7 @@ export const MobileMenu = ({ t, font, children }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          ...buttonStyle,
         }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.textSecondary} strokeWidth="2" strokeLinecap="round">

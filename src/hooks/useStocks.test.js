@@ -129,6 +129,32 @@ describe('useStocks', () => {
     expect(Object.keys(result.current.stocks)).toEqual(['AAPL']);
   });
 
+  it('should split oversized symbol lists into multiple requests and merge the results', async () => {
+    const symbols = Array.from({ length: 101 }, (_, index) => `SYM${index}`);
+
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ symbol: 'SYM0', price: 100, change: 1, changePercent: 1 }]
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ symbol: 'SYM100', price: 200, change: -1, changePercent: -0.5 }]
+      });
+
+    const { result } = renderHook(() => useStocks(symbols));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch.mock.calls[0][0]).toContain('/api/stocks-free?symbols=');
+    expect(global.fetch.mock.calls[1][0]).toContain('/api/stocks-free?symbols=');
+    expect(result.current.stocks.SYM0.price).toBe(100);
+    expect(result.current.stocks.SYM100.price).toBe(200);
+  });
+
   it('should refetch data when refetch is called', async () => {
     const mockData = [
       { symbol: 'AAPL', price: 150.25, change: 2.5, changePercent: 1.69 }

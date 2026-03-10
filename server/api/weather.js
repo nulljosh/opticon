@@ -5,6 +5,14 @@ const OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
 const CACHE_TTL = 10 * 60 * 1000;
 const cache = new Map();
 
+function buildMeta(status, extra = {}) {
+  return {
+    status,
+    updatedAt: new Date().toISOString(),
+    ...extra,
+  };
+}
+
 // WMO weather code -> description
 const WMO_CODES = {
   0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
@@ -45,7 +53,10 @@ export default async function handler(req, res) {
   const cached = cache.get(key);
   if (cached && Date.now() - cached.ts < CACHE_TTL) {
     res.setHeader('Cache-Control', 'public, max-age=600');
-    return res.status(200).json(cached.data);
+    return res.status(200).json({
+      ...cached.data,
+      meta: buildMeta('cache', { cached: true, cacheAgeMs: Date.now() - cached.ts }),
+    });
   }
 
   try {
@@ -70,6 +81,7 @@ export default async function handler(req, res) {
       code: cw.weathercode,
       humidity,
       source: 'open-meteo',
+      meta: buildMeta('live'),
     };
 
     cache.set(key, { ts: Date.now(), data });
@@ -81,6 +93,10 @@ export default async function handler(req, res) {
       fallback: true,
       temp: null,
       description: 'Weather unavailable',
+      meta: buildMeta('degraded', {
+        degraded: true,
+        warning: 'Open-Meteo weather data unavailable',
+      }),
     });
   }
 }

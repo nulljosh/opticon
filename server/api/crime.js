@@ -5,6 +5,14 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 const TIMEOUT_MS = 8000;
 const cache = new Map();
 
+function buildMeta(status, extra = {}) {
+  return {
+    status,
+    updatedAt: new Date().toISOString(),
+    ...extra,
+  };
+}
+
 async function fetchWithTimeout(url, ms = TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
@@ -211,20 +219,27 @@ export default async function handler(req, res) {
   const cached = cache.get(cacheKey);
   if (cached && (Date.now() - cached.ts) < CACHE_TTL_MS) {
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
-    return res.status(200).json({ incidents: cached.data, cached: true });
+    return res.status(200).json({
+      incidents: cached.data,
+      cached: true,
+      meta: buildMeta('cache', { cached: true, cacheAgeMs: Date.now() - cached.ts }),
+    });
   }
 
   try {
     const fetchers = [];
+    const attemptedSources = [];
 
     // Query US portals only if user is within 50km of that city
     for (const portal of US_PORTALS) {
       if (distance(lat, lon, portal.lat, portal.lon) < 50) {
+        attemptedSources.push(portal.name);
         fetchers.push(portal.fetch(lat, lon).catch(() => []));
       }
     }
 
     // Always try Canadian/news fallback for universal coverage
+    attemptedSources.push('canadian_news_fallback');
     fetchers.push(fetchCanadianCrime(lat, lon).catch(() => []));
 
     const results = await Promise.all(fetchers);
@@ -232,12 +247,37 @@ export default async function handler(req, res) {
 
     cache.set(cacheKey, { data: incidents, ts: Date.now() });
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
-    return res.status(200).json({ incidents, sources: incidents.length > 0 ? [...new Set(incidents.map(i => i.source))] : [] });
+    const sources = incidents.length > 0 ? [...new Set(incidents.map(i => i.source))] : [];
+    const degraded = incidents.length === 0;
+    return res.status(200).json({
+      incidents,
+      sources,
+      attemptedSources,
+      meta: buildMeta(degraded ? 'degraded' : 'live', degraded
+        ? { degraded: true, warning: 'No crime feeds produced results for this location' }
+        : {}),
+    });
   } catch (err) {
     console.error('Crime API error:', err);
     if (cached) {
-      return res.status(200).json({ incidents: cached.data, stale: true });
+      return res.status(200).json({
+        incidents: cached.data,
+        stale: true,
+        meta: buildMeta('stale', {
+          cached: true,
+          degraded: true,
+          cacheAgeMs: Date.now() - cached.ts,
+          warning: 'Crime providers failed; serving stale cached data',
+        }),
+      });
     }
-    return res.status(500).json({ error: 'Failed to fetch crime data', details: err.message });
+    return res.status(200).json({
+      incidents: [],
+      attemptedSources: ['canadian_news_fallback'],
+      meta: buildMeta('degraded', {
+        degraded: true,
+        warning: 'Crime providers failed and no cached data is available',
+      }),
+    });
   }
 }

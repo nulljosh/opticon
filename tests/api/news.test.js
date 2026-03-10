@@ -71,6 +71,7 @@ describe('news API handler', () => {
     expect(data()).toHaveProperty('articles');
     expect(data().articles).toBeInstanceOf(Array);
     expect(data().articles.length).toBeGreaterThan(0);
+    expect(data().meta.status).toBe('live');
   });
 
   it('sets Cache-Control s-maxage=300 header', async () => {
@@ -178,6 +179,7 @@ describe('news API handler', () => {
     expect(status()).toBe(502);
     expect(data().error).toMatch(/unavailable/i);
     expect(data().articles).toEqual([]);
+    expect(data().meta.status).toBe('degraded');
   });
 
   it('uses cache on second call within 5 minutes', async () => {
@@ -195,5 +197,6 @@ describe('news API handler', () => {
     expect(call2.status()).toBe(200);
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(call2.data().articles.length).toBe(call1.data().articles.length);
+    expect(call2.data().meta.status).toBe('cache');
   });
 });

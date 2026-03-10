@@ -283,7 +283,7 @@ export default function App() {
 
   const { prices: liveAssets, lastUpdated } = useLivePrices(defaultAssets);
   const { markets, loading: pmLoading, error: pmError } = usePolymarket();
-  const { stocks, reliability: stocksReliability } = useStocks(undefined, { enabled: isAuthenticated });
+  const { stocks, reliability: stocksReliability } = useStocks();
 
   // Sync live stock prices into ref for simulator access
   useEffect(() => {
@@ -822,7 +822,8 @@ const reset = useCallback(() => {
 
   // Memoize ticker items - use live stock data
   const tickerItems = useMemo(() => {
-    if (!stocks || Object.keys(stocks).length === 0) {
+    const tickerCanRender = ['live', 'stale'].includes(stocksReliability?.status) || stocksReliability?.source === 'cache';
+    if (!tickerCanRender || !stocks || Object.keys(stocks).length === 0) {
       return [];
     }
 
@@ -840,7 +841,7 @@ const reset = useCallback(() => {
         change: stock.changePercent || 0,
       };
     });
-  }, [stocks, watchlist]);
+  }, [stocks, stocksReliability, watchlist]);
 
   const filteredMarkets = useMemo(() => {
     let filtered = markets;

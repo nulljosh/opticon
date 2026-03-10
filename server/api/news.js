@@ -8,6 +8,14 @@ const DEDUP_THRESHOLD = 0.6;
 // Cache keyed by "query:lat:lon"
 const cache = new Map();
 
+function buildMeta(status, extra = {}) {
+  return {
+    status,
+    updatedAt: new Date().toISOString(),
+    ...extra,
+  };
+}
+
 // City list for geo keyword matching and lat/lon -> city name lookup
 const CITIES = [
   { name: 'New York',      lat: 40.7128,  lon: -74.0060  },
@@ -179,7 +187,10 @@ export default async function handler(req, res) {
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.ts < CACHE_TTL) {
     res.setHeader('Cache-Control', 's-maxage=300');
-    return res.status(200).json(hit.data);
+    return res.status(200).json({
+      ...hit.data,
+      meta: buildMeta('cache', { cached: true, cacheAgeMs: Date.now() - hit.ts }),
+    });
   }
 
   // Build GDELT query string
@@ -232,7 +243,10 @@ export default async function handler(req, res) {
     });
 
     const articles = dedup(raw).filter(a => isEnglishTitle(a.title));
-    const data = { articles };
+    const data = {
+      articles,
+      meta: buildMeta('live'),
+    };
     cache.set(cacheKey, { ts: Date.now(), data });
     res.setHeader('Cache-Control', 's-maxage=300');
     return res.status(200).json(data);
@@ -244,9 +258,24 @@ export default async function handler(req, res) {
     const stale = cache.get(cacheKey);
     if (stale) {
       res.setHeader('Cache-Control', 's-maxage=60');
-      return res.status(200).json(stale.data);
+      return res.status(200).json({
+        ...stale.data,
+        meta: buildMeta('stale', {
+          cached: true,
+          degraded: true,
+          cacheAgeMs: Date.now() - stale.ts,
+          warning: 'GDELT unavailable; serving stale cached news',
+        }),
+      });
     }
 
-    return res.status(502).json({ error: 'GDELT unavailable', articles: [] });
+    return res.status(502).json({
+      error: 'GDELT unavailable',
+      articles: [],
+      meta: buildMeta('degraded', {
+        degraded: true,
+        warning: 'GDELT unavailable and no cached news is available',
+      }),
+    });
   }
 }

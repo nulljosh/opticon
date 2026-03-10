@@ -216,11 +216,11 @@ const parseStockData = (raw) => {
 };
 
 export function useStocks(symbols = DEFAULT_SYMBOLS, { enabled = true } = {}) {
-  const [stocks, setStocks] = useState(FALLBACK_DATA);
+  const [stocks, setStocks] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reliability, setReliability] = useState({
-    status: 'live',
+    status: 'loading',
     source: 'loading',
     lastSuccessAt: null,
     lastAttemptAt: null,
@@ -240,7 +240,7 @@ export function useStocks(symbols = DEFAULT_SYMBOLS, { enabled = true } = {}) {
       const stockMap = parseStockData(raw);
       if (!stockMap) throw new Error('No valid stock data received from any API');
 
-      setStocks(prev => ({ ...FALLBACK_DATA, ...prev, ...stockMap }));
+      setStocks(stockMap);
       setError(null);
       const now = Date.now();
       lastLiveSuccessRef.current = now;
@@ -301,7 +301,7 @@ export function useStocks(symbols = DEFAULT_SYMBOLS, { enabled = true } = {}) {
             const cachedAt = data.updatedAt ? new Date(data.updatedAt).getTime() : Date.now();
             const cacheAge = Date.now() - cachedAt;
             lastLiveSuccessRef.current = cachedAt;
-            setStocks(prev => ({ ...FALLBACK_DATA, ...prev, ...stockMap }));
+            setStocks(stockMap);
             setReliability({
               status: cacheAge > STALE_AFTER_MS ? 'stale' : 'live',
               source: 'cache',

@@ -5,6 +5,14 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 const TIMEOUT_MS = 8000;
 const cache = new Map();
 
+function buildMeta(status, extra = {}) {
+  return {
+    status,
+    updatedAt: new Date().toISOString(),
+    ...extra,
+  };
+}
+
 async function fetchWithTimeout(url, headers = {}, ms = TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
@@ -180,26 +188,34 @@ export default async function handler(req, res) {
   const cached = cache.get(cacheKey);
   if (cached && (Date.now() - cached.ts) < CACHE_TTL_MS) {
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
-    return res.status(200).json({ events: cached.data, cached: true });
+    return res.status(200).json({
+      events: cached.data,
+      cached: true,
+      meta: buildMeta('cache', { cached: true, cacheAgeMs: Date.now() - cached.ts }),
+    });
   }
 
   const apiKey = process.env.PREDICTHQ_API_KEY;
 
   try {
     const fetchers = [];
+    const attemptedSources = [];
 
     // PredictHQ if key available
     if (apiKey) {
+      attemptedSources.push('predicthq');
       fetchers.push(fetchPredictHQ(lat, lon, radius, apiKey).catch(() => []));
     }
 
     // Free fallbacks (always run)
+    attemptedSources.push('eventbrite', 'osm_venues');
     fetchers.push(fetchEventbrite(lat, lon).catch(() => []));
     fetchers.push(fetchOSMVenues(lat, lon).catch(() => []));
 
     // News fallback with city name
     const cityName = await reverseGeocode(lat, lon);
     if (cityName) {
+      attemptedSources.push('news_rss');
       fetchers.push(fetchEventNews(lat, lon, cityName).catch(() => []));
     }
 
@@ -217,12 +233,37 @@ export default async function handler(req, res) {
 
     cache.set(cacheKey, { data: deduped, ts: Date.now() });
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
-    return res.status(200).json({ events: deduped, sources: [...new Set(deduped.map(e => e.source))] });
+    const sources = [...new Set(deduped.map(e => e.source))];
+    const degraded = deduped.length === 0;
+    return res.status(200).json({
+      events: deduped,
+      sources,
+      attemptedSources,
+      meta: buildMeta(degraded ? 'degraded' : 'live', degraded
+        ? { degraded: true, warning: 'No local event feeds produced results for this location' }
+        : {}),
+    });
   } catch (err) {
     console.error('Local events API error:', err);
     if (cached) {
-      return res.status(200).json({ events: cached.data, stale: true });
+      return res.status(200).json({
+        events: cached.data,
+        stale: true,
+        meta: buildMeta('stale', {
+          cached: true,
+          degraded: true,
+          cacheAgeMs: Date.now() - cached.ts,
+          warning: 'Local event providers failed; serving stale cached data',
+        }),
+      });
     }
-    return res.status(200).json({ events: [] });
+    return res.status(200).json({
+      events: [],
+      attemptedSources: apiKey ? ['predicthq', 'eventbrite', 'osm_venues', 'news_rss'] : ['eventbrite', 'osm_venues', 'news_rss'],
+      meta: buildMeta('degraded', {
+        degraded: true,
+        warning: 'Local event providers failed and no cached data is available',
+      }),
+    });
   }
 }

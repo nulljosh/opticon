@@ -72,6 +72,7 @@ describe('api/flights handler', () => {
 
     expect(res._status).toBe(200);
     expect(res._body.source).toBe('opensky');
+    expect(res._body.meta.status).toBe('live');
     // onGround flight should be filtered out
     expect(res._body.states.every(s => !s.onGround)).toBe(true);
     expect(res._body.count).toBe(2);
@@ -103,6 +104,7 @@ describe('api/flights handler', () => {
     expect(res._body.error).toBeTruthy();
     expect(res._body.states).toEqual([]);
     expect(res._body.count).toBe(0);
+    expect(res._body.meta.status).toBe('degraded');
   });
 
   it('sets cache headers', async () => {
@@ -126,5 +128,26 @@ describe('api/flights handler', () => {
     res._body.states.forEach(s => {
       expect(s.callsign).toBe(s.callsign.trim());
     });
+  });
+
+  it('serves stale cached data when OpenSky fails after a successful response', async () => {
+    vi.resetModules();
+    const { default: freshHandler } = await import('../server/api/flights.js');
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockOpenSkyResponse),
+      })
+      .mockRejectedValueOnce(new Error('Network error'));
+
+    const first = makeReqRes({ lamin: '47', lomin: '-126', lamax: '51', lomax: '-120' });
+    await freshHandler(first.req, first.res);
+
+    const second = makeReqRes({ lamin: '47', lomin: '-126', lamax: '51', lomax: '-120' });
+    await freshHandler(second.req, second.res);
+
+    expect(second.res._status).toBe(200);
+    expect(second.res._body.count).toBe(2);
+    expect(second.res._body.meta.status).toBe('cache');
   });
 });

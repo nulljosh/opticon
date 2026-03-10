@@ -50,6 +50,7 @@ describe('api/events handler', () => {
     expect(res._status).toBe(200);
     expect(res._headers['Cache-Control']).toContain('max-age=300');
     expect(res._body.events).toHaveLength(10);
+    expect(res._body.meta.status).toBe('live');
     expect(res._body.events[0]).toEqual({
       title: 'Event 1',
       url: 'https://example.com/1',
@@ -70,5 +71,6 @@ describe('api/events handler', () => {
     expect(res._status).toBe(502);
     expect(res._body.error).toBeTruthy();
     expect(res._body.events).toEqual([]);
+    expect(res._body.meta.status).toBe('degraded');
   });
 });

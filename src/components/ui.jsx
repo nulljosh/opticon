@@ -52,7 +52,9 @@ export const BlinkingDot = ({ color, delay = 0, speed = 2 }) => (
 
 export const StatusBar = ({ t, reliability }) => {
   const status = reliability?.status || 'live';
-  const cfg = status === 'stale'
+  const cfg = status === 'loading'
+    ? { label: 'LOADING', color: t.textSecondary }
+    : status === 'stale'
     ? { label: 'STALE', color: '#ff6b6b' }
     : status === 'fallback'
       ? { label: 'FALLBACK', color: '#f5a623' }

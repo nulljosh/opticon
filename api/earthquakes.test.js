@@ -50,6 +50,7 @@ describe('api/earthquakes handler', () => {
     expect(res._status).toBe(200);
     expect(res._headers['Cache-Control']).toContain('max-age=300');
     expect(res._body.earthquakes).toHaveLength(1);
+    expect(res._body.meta.status).toBe('live');
     expect(res._body.earthquakes[0]).toEqual({
       mag: 3.2,
       place: '10km NW of Test',
@@ -71,5 +72,6 @@ describe('api/earthquakes handler', () => {
     expect(res._status).toBe(502);
     expect(res._body.error).toBeTruthy();
     expect(res._body.earthquakes).toEqual([]);
+    expect(res._body.meta.status).toBe('degraded');
   });
 });

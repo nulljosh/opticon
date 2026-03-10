@@ -3,6 +3,14 @@ const GDELT_BASE = 'https://api.gdeltproject.org/api/v2/doc/doc';
 const CACHE_TTL = 5 * 60 * 1000;
 let cache = null;
 
+function buildMeta(status, extra = {}) {
+  return {
+    status,
+    updatedAt: new Date().toISOString(),
+    ...extra,
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -14,7 +22,10 @@ export default async function handler(req, res) {
 
   if (cache && cache.key === cacheKey && Date.now() - cache.ts < CACHE_TTL) {
     res.setHeader('Cache-Control', 'public, max-age=300');
-    return res.status(200).json(cache.data);
+    return res.status(200).json({
+      ...cache.data,
+      meta: buildMeta('cache', { cached: true, cacheAgeMs: Date.now() - cache.ts }),
+    });
   }
 
   // Make GDELT query location-aware when coordinates provided
@@ -40,13 +51,35 @@ export default async function handler(req, res) {
       date: a.seendate,
       country: a.sourcecountry,
     }));
-    const data = { events };
+    const data = {
+      events,
+      meta: buildMeta('live'),
+    };
     cache = { ts: Date.now(), data, key: cacheKey };
     res.setHeader('Cache-Control', 'public, max-age=300');
     return res.status(200).json(data);
   } catch (err) {
     clearTimeout(timer);
     console.warn('GDELT error:', err.message);
-    return res.status(502).json({ error: 'GDELT unavailable', events: [] });
+    if (cache && cache.key === cacheKey) {
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.status(200).json({
+        ...cache.data,
+        meta: buildMeta('stale', {
+          cached: true,
+          degraded: true,
+          cacheAgeMs: Date.now() - cache.ts,
+          warning: 'GDELT unavailable; serving stale cached events',
+        }),
+      });
+    }
+    return res.status(502).json({
+      error: 'GDELT unavailable',
+      events: [],
+      meta: buildMeta('degraded', {
+        degraded: true,
+        warning: 'GDELT unavailable and no cached events are available',
+      }),
+    });
   }
 }

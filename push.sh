@@ -1,13 +1,19 @@
 #!/bin/bash
-# Push to git and deploy to Vercel
+# Validate locally and deploy Opticon to Vercel.
 set -e
 
-echo "Pushing to git..."
-git push
+REPO_DIR="/Users/joshua/Documents/Code/opticon"
 
-echo "Deploying to Vercel..."
-cd /Users/joshua/Documents/Code/stonks/polymarket-terminal
+cd "$REPO_DIR"
+
+echo "Running targeted stock hook tests..."
+npm test -- --run src/hooks/useStocks.test.js
+
+echo "Building production bundle..."
+npm run build
+
+echo "Deploying Opticon to Vercel..."
 vercel --prod --yes
 
 echo "Done!"
-echo "Live at: https://stonks-dashboard-orpin.vercel.app/"
+echo "Verify the top ticker on https://opticon.heyitsmejosh.com/"

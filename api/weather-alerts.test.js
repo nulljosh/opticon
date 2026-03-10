@@ -73,6 +73,7 @@ describe('api/weather-alerts handler', () => {
     expect(res._body.alerts).toHaveLength(2);
     expect(res._body.alerts[0].source).toBe('noaa');
     expect(res._body.alerts[1].source).toBe('open-meteo');
+    expect(res._body.meta.status).toBe('live');
   });
 
   it('handles NOAA failure and returns Open-Meteo severe alert', async () => {
@@ -93,5 +94,20 @@ describe('api/weather-alerts handler', () => {
     expect(res._status).toBe(200);
     expect(res._body.alerts).toHaveLength(1);
     expect(res._body.alerts[0].source).toBe('open-meteo');
+    expect(res._body.meta.status).toBe('live');
+  });
+
+  it('returns degraded metadata when no provider returns alerts', async () => {
+    vi.resetModules();
+    const { default: freshHandler } = await import('../server/api/weather-alerts.js');
+
+    global.fetch = vi.fn(() => Promise.reject(new Error('all down')));
+
+    const { req, res } = makeReqRes({ lat: '49.28', lon: '-123.12' });
+    await freshHandler(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body.alerts).toEqual([]);
+    expect(res._body.meta.status).toBe('degraded');
   });
 });

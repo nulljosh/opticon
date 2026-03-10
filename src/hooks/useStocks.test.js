@@ -53,6 +53,16 @@ describe('useStocks', () => {
     expect(result.current.error).toBeNull();
   });
 
+  it('should not expose hardcoded stock data before the first fetch resolves', () => {
+    global.fetch.mockImplementation(() => new Promise(() => {}));
+
+    const { result } = renderHook(() => useStocks(['AAPL']));
+
+    expect(result.current.loading).toBe(true);
+    expect(result.current.stocks).toEqual({});
+    expect(result.current.reliability.status).toBe('loading');
+  });
+
   it('should handle fetch errors gracefully', async () => {
     global.fetch.mockRejectedValueOnce(new Error('Network error'));
 
@@ -102,6 +112,21 @@ describe('useStocks', () => {
 
     expect(result.current.stocks).toHaveProperty('AAPL');
     expect(result.current.stocks).not.toHaveProperty('INVALID');
+  });
+
+  it('should only expose symbols returned by the live response', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [{ symbol: 'AAPL', price: 150.25, change: 2.5, changePercent: 1.69 }]
+    });
+
+    const { result } = renderHook(() => useStocks(['AAPL']));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(Object.keys(result.current.stocks)).toEqual(['AAPL']);
   });
 
   it('should refetch data when refetch is called', async () => {

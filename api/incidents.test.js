@@ -56,6 +56,7 @@ describe('api/incidents handler', () => {
     expect(res._status).toBe(200);
     expect(res._headers['Cache-Control']).toContain('max-age=600');
     expect(res._body.incidents).toHaveLength(2);
+    expect(res._body.meta.status).toBe('live');
     expect(res._body.incidents[0].type).toBe('construction');
     expect(res._body.incidents[0].description).toBe('Road Work');
   });
@@ -74,6 +75,7 @@ describe('api/incidents handler', () => {
     expect(res._status).toBe(200);
     expect(res._body.incidents).toHaveLength(1);
     expect(res._body.incidents[0].type).toBe('road_works');
+    expect(res._body.meta.status).toBe('live');
   });
 
   it('returns empty incidents when Overpass fails', async () => {
@@ -86,5 +88,6 @@ describe('api/incidents handler', () => {
 
     expect(res._status).toBe(200);
     expect(res._body.incidents).toEqual([]);
+    expect(res._body.meta.status).toBe('degraded');
   });
 });

@@ -61,6 +61,14 @@ async function fetchOpenMeteo(lat, lon) {
   }
 }
 
+function buildMeta(status, extra = {}) {
+  return {
+    status,
+    updatedAt: new Date().toISOString(),
+    ...extra,
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
   const { lat, lon } = req.query;
@@ -71,11 +79,22 @@ export default async function handler(req, res) {
   const cached = cache.get(key);
   if (cached && Date.now() - cached.ts < CACHE_TTL) {
     res.setHeader('Cache-Control', 'public, max-age=600');
-    return res.status(200).json(cached.data);
+    return res.status(200).json({
+      ...cached.data,
+      meta: buildMeta('cache', { cached: true, cacheAgeMs: Date.now() - cached.ts }),
+    });
   }
   const [noaa, meteo] = await Promise.all([fetchNoaa(+lat, +lon), fetchOpenMeteo(+lat, +lon)]);
   const alerts = [...noaa, ...meteo];
-  const data = { alerts };
+  const sources = [...new Set(alerts.map(alert => alert.source))];
+  const degraded = sources.length === 0;
+  const data = {
+    alerts,
+    sources,
+    meta: buildMeta(degraded ? 'degraded' : 'live', degraded
+      ? { degraded: true, warning: 'No upstream weather alerts available for this location right now' }
+      : {}),
+  };
   cache.set(key, { ts: Date.now(), data });
   res.setHeader('Cache-Control', 'public, max-age=600');
   return res.status(200).json(data);

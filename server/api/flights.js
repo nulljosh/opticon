@@ -7,6 +7,15 @@ const OPENSKY_BASE = 'https://opensky-network.org/api';
 const cache = new Map(); // key: bbox string → { data, ts }
 const CACHE_TTL = 15_000; // 15 seconds
 
+function buildMeta(status, bbox, extra = {}) {
+  return {
+    status,
+    bbox,
+    updatedAt: new Date().toISOString(),
+    ...extra,
+  };
+}
+
 function parseBbox(query) {
   const { lamin, lomin, lamax, lomax } = query;
   const nums = [lamin, lomin, lamax, lomax].map(Number);
@@ -49,7 +58,12 @@ async function fetchOpenSky(bbox) {
       vertRate:  s[11],
     })).filter(f => f.lat !== null && f.lon !== null && !f.onGround);
 
-    return { source: 'opensky', states, count: states.length };
+    return {
+      source: 'opensky',
+      states,
+      count: states.length,
+      meta: buildMeta('live', bbox),
+    };
   } catch (err) {
     clearTimeout(timeout);
     throw err;
@@ -75,7 +89,10 @@ export default async function handler(req, res) {
   if (hit && now - hit.ts < CACHE_TTL) {
     res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30');
     res.setHeader('X-Cache', 'HIT');
-    return res.status(200).json(hit.data);
+    return res.status(200).json({
+      ...hit.data,
+      meta: buildMeta('cache', bbox, { cached: true, cacheAgeMs: now - hit.ts }),
+    });
   }
 
   let result;
@@ -83,7 +100,28 @@ export default async function handler(req, res) {
     result = await fetchOpenSky(bbox);
   } catch (openSkyErr) {
     console.error('OpenSky failed:', openSkyErr.message);
-    return res.status(502).json({ error: 'Flight data unavailable', states: [], count: 0 });
+    if (hit) {
+      res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30');
+      res.setHeader('X-Cache', 'STALE');
+      return res.status(200).json({
+        ...hit.data,
+        meta: buildMeta('stale', bbox, {
+          cached: true,
+          degraded: true,
+          cacheAgeMs: now - hit.ts,
+          warning: 'OpenSky unavailable; serving stale flight data',
+        }),
+      });
+    }
+    return res.status(502).json({
+      error: 'Flight data unavailable',
+      states: [],
+      count: 0,
+      meta: buildMeta('degraded', bbox, {
+        degraded: true,
+        warning: 'OpenSky unavailable and no cached flight data is available',
+      }),
+    });
   }
 
   cache.set(cacheKey, { data: result, ts: now });

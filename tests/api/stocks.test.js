@@ -75,6 +75,38 @@ describe('Stocks API', () => {
     expect(mockRes.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', 'http://localhost:5173');
   });
 
+  it('should include market cap and pe ratio from FMP when available', async () => {
+    process.env.FMP_API_KEY = 'test-key';
+    mockReq.query.symbols = 'AAPL';
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ([{
+        symbol: 'AAPL',
+        price: 150.25,
+        change: 2.5,
+        changesPercentage: 1.69,
+        volume: 123456789,
+        marketCap: 3200000000000,
+        pe: 31.7,
+        yearHigh: 200,
+        yearLow: 120,
+      }])
+    });
+
+    await handler(mockReq, mockRes);
+
+    expect(statusCode).toBe(200);
+    expect(jsonData).toHaveLength(1);
+    expect(jsonData[0]).toMatchObject({
+      symbol: 'AAPL',
+      marketCap: 3200000000000,
+      peRatio: 31.7,
+    });
+
+    delete process.env.FMP_API_KEY;
+  });
+
   it('should handle custom symbols query parameter', async () => {
     mockReq.query.symbols = 'TSLA,NVDA';
 

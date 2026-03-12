@@ -53,6 +53,8 @@ async function fetchFmpQuotes(symbolList) {
         change: q.change ?? 0,
         changePercent: q.changesPercentage ?? 0,
         volume: q.volume ?? 0,
+        marketCap: q.marketCap ?? q.market_cap ?? q.marketCapitalization ?? null,
+        peRatio: q.pe ?? q.priceEarningsRatio ?? q.trailingPE ?? null,
         fiftyTwoWeekHigh: q.yearHigh ?? null,
         fiftyTwoWeekLow: q.yearLow ?? null,
       }));
@@ -92,6 +94,8 @@ async function fetchYahooChartSingle(symbol, provider) {
       change: Math.round(change * 100) / 100,
       changePercent: Math.round(changePercent * 100) / 100,
       volume: meta.regularMarketVolume ?? 0,
+      marketCap: null,
+      peRatio: null,
       fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
       fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? null,
     };

@@ -2,6 +2,7 @@ import { getKv } from './_kv.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { parseCookies, getSessionUser, errorResponse } from './auth-helpers.js';
+import { supabaseRequest, supabaseConfigured } from './supabase.js';
 
 // In-memory rate limiter for login attempts
 const loginAttempts = new Map();
@@ -48,6 +49,64 @@ function getBaseUrl() {
     : DEFAULT_BASE_URL;
 }
 
+function publicUser(user) {
+  return {
+    id: user?.id,
+    email: user?.email,
+    verified: user?.verified ?? false,
+    tier: user?.tier || 'free',
+    stripeCustomerId: user?.stripeCustomerId || null,
+    watchlist: user?.watchlist || null,
+  };
+}
+
+async function requireAuthenticatedUser(req, kv) {
+  const session = await getSessionUser(req);
+  if (!session) return { session: null, user: null };
+  const user = await kv.get(`user:${session.email}`);
+  return { session, user };
+}
+
+async function updateCurrentSession(req, kv, updater) {
+  const cookies = parseCookies(req);
+  const token = cookies.opticon_session;
+  if (!token) return;
+  const sessionKey = `session:${token}`;
+  const current = await kv.get(sessionKey);
+  if (!current) return;
+  const next = updater(current) || current;
+  await kv.set(sessionKey, next, { ex: SESSION_TTL });
+}
+
+async function migrateSupabaseEmail(oldEmail, newEmail) {
+  if (!supabaseConfigured()) return;
+
+  await Promise.all([
+    supabaseRequest(`watchlists?user_email=eq.${encodeURIComponent(oldEmail)}`, {
+      method: 'PATCH',
+      body: { user_email: newEmail },
+    }),
+    supabaseRequest(`alerts?user_email=eq.${encodeURIComponent(oldEmail)}`, {
+      method: 'PATCH',
+      body: { user_email: newEmail },
+    }),
+    supabaseRequest(`portfolio_history?user_email=eq.${encodeURIComponent(oldEmail)}`, {
+      method: 'PATCH',
+      body: { user_email: newEmail },
+    }),
+  ]);
+}
+
+async function deleteSupabaseUserData(email) {
+  if (!supabaseConfigured()) return;
+
+  await Promise.all([
+    supabaseRequest(`watchlists?user_email=eq.${encodeURIComponent(email)}`, { method: 'DELETE' }),
+    supabaseRequest(`alerts?user_email=eq.${encodeURIComponent(email)}`, { method: 'DELETE' }),
+    supabaseRequest(`portfolio_history?user_email=eq.${encodeURIComponent(email)}`, { method: 'DELETE' }),
+  ]);
+}
+
 export default async function handler(req, res) {
   const kv = await getKv();
   const { action } = req.query;
@@ -62,14 +121,7 @@ export default async function handler(req, res) {
       const user = await kv.get(`user:${session.email}`);
       return res.status(200).json({
         authenticated: true,
-        user: {
-          id: user?.id,
-          email: session.email,
-          verified: user?.verified ?? false,
-          tier: user?.tier || 'free',
-          stripeCustomerId: user?.stripeCustomerId || null,
-          watchlist: user?.watchlist || null,
-        },
+        user: publicUser(user || { email: session.email, tier: session.tier }),
       });
     } catch (err) {
       console.error('[AUTH] Session check failed:', err.message);
@@ -92,7 +144,8 @@ export default async function handler(req, res) {
     }
 
     try {
-      const existing = await kv.get(`user:${email.toLowerCase()}`);
+      const normalizedEmail = email.toLowerCase();
+      const existing = await kv.get(`user:${normalizedEmail}`);
       if (existing) {
         return errorResponse(res, 409, 'Account already exists');
       }
@@ -103,7 +156,7 @@ export default async function handler(req, res) {
 
       const user = {
         id,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         passwordHash,
         verified: false,
         tier: 'free',
@@ -112,14 +165,13 @@ export default async function handler(req, res) {
         createdAt: new Date().toISOString(),
       };
 
-      await kv.set(`user:${email.toLowerCase()}`, user);
-      await kv.set(`verify:${verifyToken}`, { email: email.toLowerCase() }, { ex: VERIFY_TTL });
+      await kv.set(`user:${normalizedEmail}`, user);
+      await kv.set(`verify:${verifyToken}`, { email: normalizedEmail }, { ex: VERIFY_TTL });
 
-      // Create session immediately (allow usage before verification)
       const sessionToken = generateToken();
       const session = {
         userId: id,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         tier: 'free',
         expiresAt: Date.now() + SESSION_TTL * 1000,
       };
@@ -133,7 +185,7 @@ export default async function handler(req, res) {
 
       return res.status(201).json({
         ok: true,
-        user: { id, email: email.toLowerCase(), verified: false, tier: 'free' },
+        user: publicUser(user),
         verifyUrl: process.env.NODE_ENV !== 'production' ? verifyUrl : undefined,
       });
     } catch (err) {
@@ -177,13 +229,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         ok: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          verified: user.verified,
-          tier: user.tier || 'free',
-          stripeCustomerId: user.stripeCustomerId || null,
-        },
+        user: publicUser(user),
       });
     } catch (err) {
       console.error('[AUTH] Login KV error:', err.message);
@@ -217,7 +263,6 @@ export default async function handler(req, res) {
   // POST: forgot-password
   if (action === 'forgot-password') {
     const { email } = req.body || {};
-    // Always return generic message to prevent email enumeration
     const genericMsg = 'If an account exists with that email, a reset link has been generated.';
     if (!email) {
       return errorResponse(res, 400, 'Email is required');
@@ -228,11 +273,10 @@ export default async function handler(req, res) {
         const resetToken = generateToken();
         await kv.set(`reset:${resetToken}`, { email: email.toLowerCase() }, { ex: RESET_TTL });
         const resetUrl = `${getBaseUrl()}/reset?token=${resetToken}`;
-        // TODO: Send email with resetUrl (Resend or nodemailer)
         console.log(`[AUTH] Password reset for ${email}: ${resetUrl}`);
       }
     } catch {
-      // Swallow errors -- always return generic message
+      // Always return generic message.
     }
     return res.status(200).json({ ok: true, message: genericMsg });
   }
@@ -258,6 +302,116 @@ export default async function handler(req, res) {
     await kv.set(`user:${resetData.email}`, user);
     await kv.del(`reset:${token}`);
     return res.status(200).json({ ok: true, message: 'Password has been reset successfully' });
+  }
+
+  // POST: change-password
+  if (action === 'change-password') {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return errorResponse(res, 400, 'Current password and new password are required');
+    }
+    if (newPassword.length < 8) {
+      return errorResponse(res, 400, 'Password must be at least 8 characters');
+    }
+
+    const { user } = await requireAuthenticatedUser(req, kv);
+    if (!user) {
+      return errorResponse(res, 401, 'Authentication required');
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      return errorResponse(res, 401, 'Current password is incorrect');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await kv.set(`user:${user.email}`, user);
+    return res.status(200).json({ ok: true, message: 'Password updated successfully', user: publicUser(user) });
+  }
+
+  // POST: change-email
+  if (action === 'change-email') {
+    const { newEmail, password } = req.body || {};
+    if (!newEmail || !password) {
+      return errorResponse(res, 400, 'New email and password are required');
+    }
+
+    const normalizedEmail = newEmail.toLowerCase().trim();
+    if (!normalizedEmail.includes('@')) {
+      return errorResponse(res, 400, 'Valid email required');
+    }
+
+    const { session, user } = await requireAuthenticatedUser(req, kv);
+    if (!session || !user) {
+      return errorResponse(res, 401, 'Authentication required');
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      return errorResponse(res, 401, 'Password is incorrect');
+    }
+    if (normalizedEmail === user.email) {
+      return errorResponse(res, 400, 'New email must be different');
+    }
+
+    const existing = await kv.get(`user:${normalizedEmail}`);
+    if (existing) {
+      return errorResponse(res, 409, 'Account already exists');
+    }
+
+    const previousEmail = user.email;
+    user.email = normalizedEmail;
+    await kv.set(`user:${normalizedEmail}`, user);
+    await kv.del(`user:${previousEmail}`);
+    await updateCurrentSession(req, kv, (current) => ({ ...current, email: normalizedEmail }));
+
+    try {
+      await migrateSupabaseEmail(previousEmail, normalizedEmail);
+    } catch (err) {
+      console.error('[AUTH] Email migration error:', err.message);
+      user.email = previousEmail;
+      await kv.set(`user:${previousEmail}`, user);
+      await kv.del(`user:${normalizedEmail}`);
+      await updateCurrentSession(req, kv, (current) => ({ ...current, email: previousEmail }));
+      return errorResponse(res, 503, 'Failed to migrate account data');
+    }
+
+    return res.status(200).json({ ok: true, message: 'Email updated successfully', user: publicUser(user) });
+  }
+
+  // POST: delete-account
+  if (action === 'delete-account') {
+    const { password } = req.body || {};
+    if (!password) {
+      return errorResponse(res, 400, 'Password is required');
+    }
+
+    const { session, user } = await requireAuthenticatedUser(req, kv);
+    if (!session || !user) {
+      return errorResponse(res, 401, 'Authentication required');
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      return errorResponse(res, 401, 'Password is incorrect');
+    }
+
+    try {
+      await deleteSupabaseUserData(user.email);
+    } catch (err) {
+      console.error('[AUTH] Delete Supabase data error:', err.message);
+      return errorResponse(res, 503, 'Failed to delete account data');
+    }
+
+    const cookies = parseCookies(req);
+    const token = cookies.opticon_session;
+    if (token) {
+      await kv.del(`session:${token}`);
+    }
+    await kv.del(`portfolio:${user.id}`);
+    await kv.del(`user:${user.email}`);
+    clearSessionCookie(res);
+    return res.status(200).json({ ok: true, message: 'Account deleted successfully' });
   }
 
   // POST: logout

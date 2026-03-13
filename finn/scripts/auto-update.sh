@@ -1,8 +1,8 @@
 #!/bin/bash
-# Auto-update Finn portfolio from balance check
+# Auto-update Opticon portfolio from balance check
 
-FINN_DIR="$HOME/Documents/Code/finn"
-cd "$FINN_DIR"
+OPTICON_DIR="$HOME/Documents/Code/opticon"
+cd "$OPTICON_DIR"
 
 # Get current balances (placeholder - would parse from screenshot/API)
 CHEQUING=$(osascript -e 'display dialog "Current chequing balance (CAD):" default answer "582"' -e 'text returned of result' 2>/dev/null)
@@ -27,4 +27,4 @@ git add index.html
 git commit -m "Update balances: \$$CAD_TOTAL CAD (~\$$USD_TOTAL USD)"
 git push
 
-echo "✓ Finn updated: \$$CAD_TOTAL CAD"
+echo "Opticon updated: \$$CAD_TOTAL CAD"

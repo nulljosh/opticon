@@ -193,7 +193,7 @@ function ProgressBar({ value, max, color, t }) {
   );
 }
 
-function SpendingChart({ spending, t }) {
+function SpendingChart({ spending, t, totalIncome, totalExpenses }) {
   const [activePoint, setActivePoint] = useState(null);
 
   if (!spending || spending.length === 0) return null;
@@ -248,6 +248,23 @@ function SpendingChart({ spending, t }) {
       ]
     : [];
   const forecastBand = forecastBandPoints.length > 0 ? `M ${forecastBandPoints.join(' L ')} Z` : '';
+  const showSavings = typeof totalIncome === 'number'
+    && Number.isFinite(totalIncome)
+    && totalIncome > 0
+    && typeof totalExpenses === 'number'
+    && Number.isFinite(totalExpenses);
+  const savings = showSavings ? totalIncome - totalExpenses : 0;
+  const savingsRate = showSavings ? ((savings / totalIncome) * 100).toFixed(1) : '0.0';
+  const savingsPoints = showSavings
+    ? actualPoints.map((point) => {
+        const savingsValue = Math.max(0, totalIncome - point.total);
+        return {
+          x: point.x,
+          y: yForValue(savingsValue),
+        };
+      })
+    : [];
+  const savingsPath = savingsPoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
 
   const firstTotal = actual[0]?.total || 0;
   const lastTotal = actual[actual.length - 1]?.total || 0;
@@ -279,6 +296,10 @@ function SpendingChart({ spending, t }) {
             <stop offset="0%" stopColor={t.green} stopOpacity="0.26" />
             <stop offset="100%" stopColor={t.green} stopOpacity="0.03" />
           </linearGradient>
+          <linearGradient id="savingsGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={t.cyan} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={t.cyan} stopOpacity="0.04" />
+          </linearGradient>
           <linearGradient id="forecastGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={t.green} stopOpacity="0.12" />
             <stop offset="100%" stopColor={t.green} stopOpacity="0.02" />
@@ -297,6 +318,17 @@ function SpendingChart({ spending, t }) {
         ))}
         <path d={actualArea} fill="url(#spendGrad)" />
         {forecastBand && <path d={forecastBand} fill="url(#forecastGrad)" />}
+        {showSavings && savingsPath && (
+          <path
+            d={savingsPath}
+            fill="none"
+            stroke={t.cyan}
+            strokeWidth="1.5"
+            strokeOpacity="0.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
         <path d={actualPath} fill="none" stroke={t.green} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
         {forecastPath && (
           <path
@@ -394,6 +426,17 @@ function SpendingChart({ spending, t }) {
           Next month likely lands around {formatCurrency(forecast.summary.expectedNextMonth)}.
           <br />
           Likely range: {formatCurrency(forecast.summary.rangeLow)} to {formatCurrency(forecast.summary.rangeHigh)}.
+        </div>
+      )}
+      {showSavings && (
+        <div style={{ fontSize: 11, color: t.textSecondary, marginTop: 10, lineHeight: 1.4 }}>
+          Monthly savings: {formatCurrency(savings)} ({savingsRate}% of income)
+          {forecast && (
+            <>
+              <br />
+              Projected savings next month: {formatCurrency(totalIncome - forecast.summary.expectedNextMonth)} (range: {formatCurrency(totalIncome - forecast.summary.rangeHigh)} to {formatCurrency(totalIncome - forecast.summary.rangeLow)})
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1020,7 +1063,7 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
 
             <Card dark={dark} t={t} style={{ marginBottom: 16, padding: 20 }}>
               <div style={labelStyle}>Spending Trends</div>
-              <SpendingChart spending={spendingChronological} t={t} />
+              <SpendingChart spending={spendingChronological} t={t} totalIncome={totalIncome} totalExpenses={totalExpenses} />
             </Card>
 
             <Card dark={dark} t={t} style={{ marginBottom: 16 }}>

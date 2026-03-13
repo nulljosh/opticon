@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSituation } from '../hooks/useSituation';
 import { Card, BlinkingDot } from './ui';
 
@@ -32,9 +32,10 @@ export default function SituationMonitor({
 }) {
   const [showPmEdges, setShowPmEdges] = useState(true);
   const [showTrades, setShowTrades] = useState(false);
+  const initialFlyDone = useRef(false);
 
   const {
-    activeCenter, selectedCity, setSelectedCity,
+    activeCenter,
     worldCities, userLocation,
     flights, traffic, flightsLoading, trafficLoading, flightsError, trafficError,
     incidents, earthquakes, events, weatherAlerts,
@@ -47,6 +48,17 @@ export default function SituationMonitor({
   const cityList = userLocation
     ? [{ id: 'me', label: userLocation.city, lat: userLocation.lat, lon: userLocation.lon }, ...worldCities]
     : worldCities;
+
+  useEffect(() => {
+    if (!initialFlyDone.current && mapFlyTo && activeCenter) {
+      mapFlyTo({
+        center: [activeCenter.lon, activeCenter.lat],
+        zoom: 10,
+        duration: 1200,
+      });
+      initialFlyDone.current = true;
+    }
+  }, [activeCenter, mapFlyTo]);
 
   return (
     <Card dark={dark} t={t} style={{ padding: '16px 20px' }}>
@@ -70,36 +82,6 @@ export default function SituationMonitor({
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.text, fontFamily: font }}>
             Situation Monitor
           </span>
-        </div>
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {cityList.slice(0, 7).map(city => {
-            const isSelected = selectedCity
-              ? selectedCity.id === city.id
-              : city.id === 'me' ? !!userLocation : !userLocation && city.id === worldCities[0].id;
-            return (
-              <button
-                key={city.id}
-                onClick={() => {
-                  if (city.id === 'me') {
-                    setSelectedCity(null);
-                    if (mapFlyTo) mapFlyTo({ center: [city.lon, city.lat], zoom: 12, duration: 1200 });
-                  } else {
-                    setSelectedCity(city);
-                    if (mapFlyTo) mapFlyTo({ center: [city.lon, city.lat], zoom: 8, duration: 1200 });
-                  }
-                }}
-                style={{
-                  padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 600,
-                  border: isSelected ? `1.5px solid ${t.cyan}` : `1px solid ${t.border}`,
-                  background: isSelected ? `${t.cyan}18` : 'transparent',
-                  color: isSelected ? t.cyan : t.textTertiary,
-                  cursor: 'pointer', fontFamily: font,
-                }}
-              >
-                {city.label}
-              </button>
-            );
-          })}
         </div>
       </div>
 

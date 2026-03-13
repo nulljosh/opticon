@@ -175,6 +175,94 @@ function gdeltDateToIso(seendate) {
   return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T${s.slice(8, 10)}:${s.slice(10, 12)}:${s.slice(12, 14)}Z`;
 }
 
+async function fetchGdelt(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const r = await fetch(url, { signal: controller.signal });
+    if (!r.ok) throw new Error(`GDELT ${r.status}`);
+    const json = await r.json();
+
+    return (json.articles || []).map(a => {
+      const { lat: gLat, lon: gLon } = extractGeo(a);
+      let source = a.domain || '';
+      try {
+        source = new URL(a.url).hostname.replace(/^www\./, '');
+      } catch {}
+      return {
+        title: a.title || '',
+        url: a.url || '',
+        source,
+        image: a.socialimage || null,
+        lat: gLat,
+        lon: gLon,
+        publishedAt: gdeltDateToIso(a.seendate),
+        newsSource: 'gdelt',
+      };
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchGoogleNews(queryTerms, lat, lon) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const query = queryTerms.join(' ');
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+    const r = await fetch(url, { signal: controller.signal });
+    if (!r.ok) throw new Error(`Google News ${r.status}`);
+    const xml = await r.text();
+
+    const items = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
+
+    return items.map(item => {
+      const title = (item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/i)?.[1]
+        || item.match(/<title>([\s\S]*?)<\/title>/i)?.[1]
+        || '')
+        .trim();
+      const articleUrl = (item.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || '').trim();
+      const sourceTag = (item.match(/<source\b[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/source>/i)?.[1]
+        || item.match(/<source\b[^>]*>([\s\S]*?)<\/source>/i)?.[1]
+        || '')
+        .trim();
+      const pubDate = (item.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1] || '').trim();
+      const { lat: gLat, lon: gLon } = extractGeo({ title });
+
+      let source = sourceTag;
+      if (!source) {
+        try {
+          source = new URL(articleUrl).hostname.replace(/^www\./, '');
+        } catch {
+          source = '';
+        }
+      }
+
+      const publishedAt = pubDate && !Number.isNaN(Date.parse(pubDate))
+        ? new Date(pubDate).toISOString()
+        : null;
+
+      return {
+        title,
+        url: articleUrl,
+        source,
+        image: null,
+        lat: gLat ?? lat ?? null,
+        lon: gLon ?? lon ?? null,
+        publishedAt,
+        newsSource: 'google',
+      };
+    });
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default async function handler(req, res) {
   applyCors(req, res);
 
@@ -195,13 +283,18 @@ export default async function handler(req, res) {
 
   // Build GDELT query string
   let queryTerms = [category];
+  let parsedLat = null;
+  let parsedLon = null;
 
   if (lat && lon) {
-    const parsedLat = parseFloat(lat);
-    const parsedLon = parseFloat(lon);
+    parsedLat = parseFloat(lat);
+    parsedLon = parseFloat(lon);
     if (!isNaN(parsedLat) && !isNaN(parsedLon)) {
       const city = nearestCity(parsedLat, parsedLon);
       if (city) queryTerms.push(`"${city.name}"`);
+    } else {
+      parsedLat = null;
+      parsedLon = null;
     }
   }
 
@@ -215,34 +308,21 @@ export default async function handler(req, res) {
     sourcelang: 'english',
   });
   const url = `${GDELT_BASE}?${params}`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  let googleArticles = [];
 
   try {
-    const r = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!r.ok) throw new Error(`GDELT ${r.status}`);
-    const json = await r.json();
+    const [gdeltResult, googleResult] = await Promise.allSettled([
+      fetchGdelt(url),
+      fetchGoogleNews(queryTerms, parsedLat, parsedLon),
+    ]);
 
-    const raw = (json.articles || []).map(a => {
-      const { lat: gLat, lon: gLon } = extractGeo(a);
-      let source = a.domain || '';
-      try {
-        source = new URL(a.url).hostname.replace(/^www\./, '');
-      } catch {}
-      return {
-        title: a.title || '',
-        url: a.url || '',
-        source,
-        image: a.socialimage || null,
-        lat: gLat,
-        lon: gLon,
-        publishedAt: gdeltDateToIso(a.seendate),
-      };
-    });
+    if (gdeltResult.status === 'rejected') {
+      throw gdeltResult.reason;
+    }
 
-    const articles = dedup(raw).filter(a => isEnglishTitle(a.title));
+    const gdeltArticles = gdeltResult.value;
+    googleArticles = googleResult.status === 'fulfilled' ? googleResult.value : [];
+    const articles = dedup([...gdeltArticles, ...googleArticles]).filter(a => isEnglishTitle(a.title));
     const data = {
       articles,
       meta: buildMeta('live'),
@@ -251,8 +331,25 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 's-maxage=300');
     return res.status(200).json(data);
   } catch (err) {
-    clearTimeout(timer);
     console.warn('GDELT news error:', err.message);
+
+    if (googleArticles.length === 0) {
+      googleArticles = await fetchGoogleNews(queryTerms, parsedLat, parsedLon);
+    }
+    googleArticles = dedup(googleArticles).filter(a => isEnglishTitle(a.title));
+
+    if (googleArticles.length > 0) {
+      const data = {
+        articles: googleArticles,
+        meta: buildMeta('live', {
+          degraded: true,
+          warning: 'GDELT unavailable; serving Google News results',
+        }),
+      };
+      cache.set(cacheKey, { ts: Date.now(), data });
+      res.setHeader('Cache-Control', 's-maxage=300');
+      return res.status(200).json(data);
+    }
 
     // Return stale cache on failure instead of empty array
     const stale = cache.get(cacheKey);

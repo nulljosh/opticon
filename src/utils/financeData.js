@@ -8,7 +8,7 @@ export const DEMO_ACCOUNTS = [
   {
     name: 'Vacation',
     type: 'chequing',
-    balance: 193.89,
+    balance: 86.85,
     currency: 'CAD',
   },
 ];

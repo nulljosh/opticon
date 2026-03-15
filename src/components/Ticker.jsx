@@ -137,7 +137,7 @@ const Ticker = memo(({ items, theme }) => {
       style={{
         overflow: 'hidden',
         borderBottom: `0.5px solid ${theme.border}`,
-        background: '#000',
+        background: theme.bg,
         color: theme.text,
         cursor: isDragging ? 'grabbing' : 'grab',
         userSelect: 'none',

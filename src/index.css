@@ -7,10 +7,12 @@
 }
 
 html, body, #root {
+  --opticon-bg: #000;
+  --opticon-text: #fff;
   height: 100%;
   width: 100%;
   overflow-x: auto;
-  background: #000;
+  background: var(--opticon-bg);
 }
 
 body {
@@ -18,10 +20,12 @@ body {
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #fff;
+  color: var(--opticon-text, #fff);
 }
 
 html[data-theme='light'], html[data-theme='light'] body, html[data-theme='light'] #root {
+  --opticon-bg: #ffffff;
+  --opticon-text: #111111;
   background: #ffffff;
   color: #111111;
 }

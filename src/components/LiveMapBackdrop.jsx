@@ -355,8 +355,28 @@ function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady }) {
 
   // User pin + local pulse -- render immediately on map load, no API dependency
   const userMarkersRef = useRef([]);
+  const prevUserPosRef = useRef(null);
+  const prevLocLabelRef = useRef('');
+  const prevCenterForPulseRef = useRef(null);
+  const prevPayloadRef = useRef('');
+
   useEffect(() => {
     if (!mapInstanceRef.current) return;
+
+    const posChanged = !prevUserPosRef.current ||
+      prevUserPosRef.current.lat !== userPosition?.lat ||
+      prevUserPosRef.current.lon !== userPosition?.lon;
+    const labelChanged = prevLocLabelRef.current !== locLabel;
+    const centerChanged = !prevCenterForPulseRef.current ||
+      Math.abs(prevCenterForPulseRef.current.lat - center.lat) > 0.001 ||
+      Math.abs(prevCenterForPulseRef.current.lon - center.lon) > 0.001;
+
+    if (!posChanged && !labelChanged && !centerChanged) return;
+
+    prevUserPosRef.current = userPosition ? { lat: userPosition.lat, lon: userPosition.lon } : null;
+    prevLocLabelRef.current = locLabel;
+    prevCenterForPulseRef.current = { lat: center.lat, lon: center.lon };
+
     (async () => {
       try {
         const maplibregl = (await import('maplibre-gl')).default;
@@ -366,17 +386,15 @@ function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady }) {
         const addUserMarker = (css, title, data, lon, lat) =>
           createMarker(maplibregl, mapInstanceRef.current, userMarkersRef.current, css, title, data, lon, lat, setSelected);
 
-        // User pin (Apple Maps drop pin style)
         if (userPosition) {
           addUserMarker(
             'width:14px;height:21px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 28 42\'><defs><radialGradient id=\'rg\' cx=\'40%25\' cy=\'35%25\' r=\'60%25\'><stop offset=\'0\' stop-color=\'%23ff6961\'/><stop offset=\'1\' stop-color=\'%23cc0000\'/></radialGradient><filter id=\'ds\'><feDropShadow dx=\'0\' dy=\'1.5\' stdDeviation=\'1.5\' flood-opacity=\'0.35\'/></filter></defs><ellipse cx=\'14\' cy=\'40\' rx=\'5\' ry=\'1.8\' fill=\'%23000\' opacity=\'.2\'/><line x1=\'14\' y1=\'22\' x2=\'14\' y2=\'39\' stroke=\'%23888\' stroke-width=\'2\' stroke-linecap=\'round\'/><circle cx=\'14\' cy=\'13\' r=\'12\' fill=\'url(%23rg)\' filter=\'url(%23ds)\'/><circle cx=\'11\' cy=\'10\' r=\'3.5\' fill=\'white\' opacity=\'.45\'/></svg>");background-size:contain;background-repeat:no-repeat;cursor:pointer;',
             'you',
-            { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: mapsLink(userPosition.lat, userPosition.lon) },
+            { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: `https://www.openstreetmap.org/?mlat=${userPosition.lat}&mlon=${userPosition.lon}#map=14/${userPosition.lat}/${userPosition.lon}` },
             userPosition.lon, userPosition.lat
           );
         }
 
-        // Local activity pulse
         addUserMarker(
           'width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,0.45);animation:pulse-cyan 2s infinite;',
           'local activity',
@@ -393,6 +411,20 @@ function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady }) {
   // API-dependent markers
   useEffect(() => {
     if (!mapInstanceRef.current) return;
+
+    const payloadKey = JSON.stringify({
+      i: payload.incidents.length,
+      t: payload.trafficIncidents.length,
+      e: payload.earthquakes.length,
+      ev: payload.events.length,
+      m: payload.markets.length,
+      n: payload.newsArticles.length,
+      c: `${center.lat.toFixed(3)},${center.lon.toFixed(3)}`,
+    });
+
+    if (prevPayloadRef.current === payloadKey) return;
+    prevPayloadRef.current = payloadKey;
+
     (async () => {
       try {
         const maplibregl = (await import('maplibre-gl')).default;

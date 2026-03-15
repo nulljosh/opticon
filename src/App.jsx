@@ -21,6 +21,7 @@ import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import Settings from './components/Settings';
 
 // Trading Simulator Assets (US50 + Indices + Crypto)
 // Fallback prices - live prices auto-loaded from Yahoo Finance via useStocks
@@ -901,7 +902,9 @@ const reset = useCallback(() => {
       ? watchlist.filter(s => stocks[s])
       : Object.keys(stocks);
 
-    return symbols.map(sym => {
+    return symbols
+      .sort((a, b) => ((stocks[b]?.changePercent || 0) - (stocks[a]?.changePercent || 0)))
+      .map(sym => {
       const stock = stocks[sym];
       return {
         key: stock.symbol,
@@ -1034,6 +1037,7 @@ const reset = useCallback(() => {
     { key: 'simulator', label: 'Simulator' },
     { key: 'portfolio', label: 'Portfolio' },
     { key: 'situation', label: 'Situation' },
+    { key: 'settings', label: 'Settings' },
   ];
 
   const simulatorPanel = (
@@ -1395,6 +1399,9 @@ const reset = useCallback(() => {
                 setMapLayers={setMapLayers}
               />
             )}
+            {activeTab === 'settings' && (
+              <Settings dark={dark} setDark={setDark} t={t} mapLayers={mapLayers} setMapLayers={setMapLayers} />
+            )}
           </>
         )}
       </div>
@@ -1473,6 +1480,9 @@ const reset = useCallback(() => {
               mapLayers={mapLayers}
               setMapLayers={setMapLayers}
             />
+          )}
+          {activeTab === 'settings' && (
+            <Settings dark={dark} setDark={setDark} t={t} mapLayers={mapLayers} setMapLayers={setMapLayers} />
           )}
         </div>
       )}

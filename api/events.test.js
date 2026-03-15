@@ -17,6 +17,7 @@ function makeReqRes(query = {}) {
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -32,7 +33,7 @@ describe('api/events handler', () => {
   });
 
   it('returns mapped events from GDELT', async () => {
-    const articles = Array.from({ length: 12 }, (_, i) => ({
+    const articles = Array.from({ length: 30 }, (_, i) => ({
       title: `Event ${i + 1}`,
       url: `https://example.com/${i + 1}`,
       domain: 'example.com',
@@ -49,7 +50,7 @@ describe('api/events handler', () => {
 
     expect(res._status).toBe(200);
     expect(res._headers['Cache-Control']).toContain('max-age=300');
-    expect(res._body.events).toHaveLength(10);
+    expect(res._body.events).toHaveLength(25);
     expect(res._body.meta.status).toBe('live');
     expect(res._body.events[0]).toEqual({
       title: 'Event 1',

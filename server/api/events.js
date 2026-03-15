@@ -31,11 +31,11 @@ export default async function handler(req, res) {
   // Make GDELT query location-aware when coordinates provided
   let query;
   if (!isNaN(lat) && !isNaN(lon)) {
-    query = encodeURIComponent(`sourcelat:${lat.toFixed(1)} sourcelong:${lon.toFixed(1)} conflict OR disaster OR crisis OR earthquake OR emergency OR incident`);
+    query = encodeURIComponent(`sourcelat:${lat.toFixed(1)} sourcelong:${lon.toFixed(1)} news OR politics OR economy OR technology OR health OR environment OR conflict OR disaster`);
   } else {
-    query = encodeURIComponent('conflict OR disaster OR crisis OR earthquake OR war');
+    query = encodeURIComponent('world OR breaking OR politics OR economy OR technology OR conflict OR disaster');
   }
-  const url = `${GDELT_BASE}?query=${query}&mode=artlist&maxrecords=20&format=json&sort=datedesc`;
+  const url = `${GDELT_BASE}?query=${query}&mode=artlist&maxrecords=50&format=json&sort=datedesc`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
     clearTimeout(timer);
     if (!r.ok) throw new Error(`GDELT ${r.status}`);
     const json = await r.json();
-    const events = (json.articles || []).slice(0, 10).map(a => ({
+    const events = (json.articles || []).slice(0, 25).map(a => ({
       title: a.title,
       url: a.url,
       domain: a.domain,
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   } catch (err) {
     clearTimeout(timer);
-    console.warn('GDELT error:', err.message);
+    console.error('GDELT error:', err.message);
     if (cache && cache.key === cacheKey) {
       res.setHeader('Cache-Control', 'public, max-age=60');
       return res.status(200).json({

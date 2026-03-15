@@ -69,7 +69,7 @@ export function resolveAutoTheme({
       : false;
 
   if (darkMatch) return 'dark';
-  if (!lightMatch) return 'dark';
+  if (lightMatch) return 'light';
   return isNightTime(now) ? 'dark' : 'light';
 }
 

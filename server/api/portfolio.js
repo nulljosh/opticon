@@ -40,7 +40,7 @@ export default async function handler(req, res) {
   // GET: read portfolio
   if (req.method === 'GET' && action === 'get') {
     const data = await kv.get(kvKey);
-    return res.status(200).json(data || { empty: true });
+    return res.status(200).json(data || { holdings: [], accounts: [], debt: [], goals: [], spending: [], giving: [] });
   }
 
   // GET: compact summary for CLI

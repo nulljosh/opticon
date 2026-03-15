@@ -1,8 +1,9 @@
-![Opticon](icon.svg)
+<img src="icon.svg" width="80">
+
 # Opticon
 ![version](https://img.shields.io/badge/version-v2.3.1-blue)
 
-Opticon is a live market and map app. It puts prices, news, and local activity on one screen.
+Opticon is a live map and market app. Prices, news, and local activity on one screen. Think Google Maps meets a financial terminal.
 
 [Live site](https://opticon.heyitsmejosh.com)
 
@@ -10,12 +11,73 @@ Opticon is a live market and map app. It puts prices, news, and local activity o
 
 ![Architecture](architecture.svg)
 
-## What It Does
+## Features
 
-- Shows live stock prices in the top bar
-- Keeps the map front and center
-- Lets you switch between Simulator, Portfolio, and Situation views
-- Tries your real location first, then falls back if it has to
+### Map (core)
+- Live interactive map (MapLibre GL, CartoDB basemaps)
+- Browser geolocation with IP fallback
+- Dark/light theme-aware tiles
+- World city hub markers
+
+### Data Layers (live)
+- Nearby flights (OpenSky Network)
+- Traffic congestion and road incidents
+- Earthquakes (USGS, M4+ highlighted)
+- Weather alerts
+- GDELT news geo-mapping
+- Prediction markets overlay (Polymarket)
+
+### Planned: Google Maps Parity
+- Directions and routing
+- Street View
+- Transit and public transport
+- Satellite and terrain views
+- Place search (POI)
+- Business listings
+- Reviews and ratings
+- Indoor maps
+- Bike and walk routes
+- Real-time ETAs
+- Offline maps
+
+### Planned: Beyond Maps
+- Crime heat maps
+- Air quality index
+- Wildfire tracking
+- Flood zones
+- Power outage mapping
+- Protest and demonstration tracking
+- Military movement data
+- Pandemic overlays
+- Economic indicators by region
+- Port and shipping activity
+
+### Trading Simulator
+- Start at $1, scale to $1T
+- 167 tradeable assets (US50 stocks, indices, crypto, meme coins)
+- Live price feeds (Yahoo Finance, FMP)
+- Kelly Criterion position sizing
+- Prediction market trading (Polymarket)
+- Win rate, PnL, and runtime tracking
+- Fibonacci price levels
+
+### Portfolio
+- Stock holdings with gain/loss tracking
+- Cash accounts (multi-currency)
+- Budget (income vs expenses, surplus)
+- Debt tracking with payoff timeline
+- Savings goals with progress bars
+- Spending analysis with statement upload
+- Editable data with server sync
+
+### Other
+- Live stock ticker bar
+- Auth (bcrypt, KV sessions)
+- Stripe billing (Free / $20 / $50 tiers)
+- Apple Pay
+- PWA with service worker
+- iOS companion app (opticon-ios)
+- macOS companion app (opticon-macos)
 
 ## Run It
 
@@ -28,27 +90,7 @@ npm run build
 
 ## Deploy
 
-Production still runs on Vercel.
-
-There is also a Cloudflare preview path for later. The short version is simple:
-
-- keep the site the same
-- let Cloudflare handle the API step by step
-- move the rest only after the preview feels solid
-
-More detail lives in [docs/hosting.md](/Users/joshua/Documents/Code/opticon/docs/hosting.md).
-
-## What Changed Recently
-
-- The stock bar now waits for real prices instead of showing built-in ones first.
-- The stock bar stays visible on small screens.
-- The map now tries a fresh browser location before it falls back to an older saved spot or a rough guess.
-
-## Next
-
-- Finish checking the Cloudflare preview
-- Keep smoothing out the phone layout
-- Move more hosting work only after the preview feels stable
+Production runs on Vercel. Cloudflare preview path documented in [docs/hosting.md](docs/hosting.md).
 
 ## License
 

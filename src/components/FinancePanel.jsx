@@ -5,7 +5,7 @@ import { formatCurrency } from '../utils/formatting';
 import { normalizeSpendingMonths } from '../utils/financeData';
 import { buildSpendingForecast } from '../utils/spendingForecast';
 
-const TABS = ['portfolio', 'budget', 'debt', 'goals', 'spending'];
+const TABS = ['portfolio', 'budget', 'spending'];
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -802,6 +802,35 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                 ))}
               </div>
             </Card>
+
+            <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
+              <div style={sectionStyle}>
+                <div style={labelStyle}>Goals</div>
+                {goals.map((goal, index) => {
+                  const pct = goal.target > 0 ? (goal.saved / goal.target) * 100 : 0;
+                  const priorityColor = goal.priority === 'high' ? t.red : goal.priority === 'medium' ? t.orange : t.green;
+                  return (
+                    <div key={`${goal.name}-${index}`} style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 3, height: 20, borderRadius: 2, background: priorityColor }} />
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{goal.name}</div>
+                            {goal.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{goal.note}</div>}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(goal.target)}</div>
+                          {goal.deadline && <div style={{ fontSize: 10, color: t.textTertiary }}>{goal.deadline}</div>}
+                        </div>
+                      </div>
+                      <ProgressBar value={goal.saved} max={goal.target} color={priorityColor} t={t} />
+                      <div style={{ fontSize: 10, color: t.textTertiary, marginTop: 2 }}>{pct.toFixed(0)}% saved</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
           </>
         )}
 
@@ -953,11 +982,6 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                 </div>
               </Card>
             )}
-          </>
-        )}
-
-        {tab === 'debt' && (
-          <>
             <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
               <div style={sectionStyle}>
                 <div style={labelStyle}>Outstanding Debt</div>
@@ -990,37 +1014,6 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
               </Card>
             )}
           </>
-        )}
-
-        {tab === 'goals' && (
-          <Card dark={dark} t={t} style={{ marginBottom: 16 }}>
-            <div style={sectionStyle}>
-              <div style={labelStyle}>Goals</div>
-              {goals.map((goal, index) => {
-                const pct = goal.target > 0 ? (goal.saved / goal.target) * 100 : 0;
-                const priorityColor = goal.priority === 'high' ? t.red : goal.priority === 'medium' ? t.orange : t.green;
-                return (
-                  <div key={`${goal.name}-${index}`} style={{ marginBottom: 16 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 3, height: 20, borderRadius: 2, background: priorityColor }} />
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{goal.name}</div>
-                          {goal.note && <div style={{ fontSize: 11, color: t.textTertiary }}>{goal.note}</div>}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(goal.target)}</div>
-                        {goal.deadline && <div style={{ fontSize: 10, color: t.textTertiary }}>{goal.deadline}</div>}
-                      </div>
-                    </div>
-                    <ProgressBar value={goal.saved} max={goal.target} color={priorityColor} t={t} />
-                    <div style={{ fontSize: 10, color: t.textTertiary, marginTop: 2 }}>{pct.toFixed(0)}% saved</div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
         )}
 
         {tab === 'spending' && (

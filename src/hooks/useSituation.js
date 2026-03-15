@@ -55,6 +55,23 @@ async function fetchWithTimeout(url, ms = 8000) {
   }
 }
 
+async function fetchJsonGraceful(url, ms = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
 export function useSituation() {
   const [userLocation, setUserLocation] = useState(() => getStoredGeo());
   const [locationError, setLocationError] = useState(null);
@@ -103,12 +120,15 @@ export function useSituation() {
     setFlightsError(null);
     const bbox = bboxFromCenter(activeCenter.lat, activeCenter.lon);
     try {
-      const data = await fetchWithTimeout(
+      const data = await fetchJsonGraceful(
         apiPath(`/api/flights?lamin=${bbox.lamin}&lomin=${bbox.lomin}&lamax=${bbox.lamax}&lomax=${bbox.lomax}`)
       );
-      setFlights(data.states ?? []);
-    } catch (err) {
-      setFlightsError(err.message);
+      setFlights(data?.states ?? []);
+      if (!data || data.meta?.degraded) {
+        setFlightsError('Flights temporarily unavailable');
+      }
+    } catch {
+      setFlightsError('Flights unavailable');
     } finally {
       setFlightsLoading(false);
     }
@@ -118,10 +138,15 @@ export function useSituation() {
     setTrafficLoading(true);
     setTrafficError(null);
     try {
-      const data = await fetchWithTimeout(apiPath(`/api/traffic?lat=${activeCenter.lat}&lon=${activeCenter.lon}`));
+      const data = await fetchJsonGraceful(
+        apiPath(`/api/traffic?lat=${activeCenter.lat}&lon=${activeCenter.lon}`)
+      );
       setTraffic(data);
-    } catch (err) {
-      setTrafficError(err.message);
+      if (!data || data.meta?.degraded) {
+        setTrafficError('Traffic data temporarily unavailable');
+      }
+    } catch {
+      setTrafficError('Traffic unavailable');
     } finally {
       setTrafficLoading(false);
     }

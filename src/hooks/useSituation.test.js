@@ -155,6 +155,81 @@ describe('useSituation', () => {
     expect(result.current.traffic).toBeNull();
   });
 
+  it('handles degraded flights response (non-200 with valid JSON)', async () => {
+    global.fetch = vi.fn(url => {
+      if (url.includes('/api/flights')) {
+        return Promise.resolve({
+          ok: false, status: 502,
+          json: () => Promise.resolve({ states: [], meta: { degraded: true } }),
+        });
+      }
+      if (url.includes('/api/traffic')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockTrafficResponse) });
+      if (url.includes('ipapi.co')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
+      return Promise.reject(new Error('Unknown'));
+    });
+
+    const { result } = renderHook(() => useSituation());
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(result.current.flights).toEqual([]);
+    expect(result.current.flightsError).toBe('Flights temporarily unavailable');
+  });
+
+  it('handles non-JSON flights error body (HTML 502)', async () => {
+    global.fetch = vi.fn(url => {
+      if (url.includes('/api/flights')) {
+        return Promise.resolve({
+          ok: false, status: 502,
+          json: () => Promise.reject(new Error('Unexpected token <')),
+        });
+      }
+      if (url.includes('/api/traffic')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockTrafficResponse) });
+      if (url.includes('ipapi.co')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
+      return Promise.reject(new Error('Unknown'));
+    });
+
+    const { result } = renderHook(() => useSituation());
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(result.current.flights).toEqual([]);
+    expect(result.current.flightsError).toBe('Flights temporarily unavailable');
+  });
+
+  it('handles degraded traffic response (non-200 with valid JSON)', async () => {
+    global.fetch = vi.fn(url => {
+      if (url.includes('/api/traffic')) {
+        return Promise.resolve({
+          ok: false, status: 502,
+          json: () => Promise.resolve({ meta: { degraded: true } }),
+        });
+      }
+      if (url.includes('/api/flights')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockFlightsResponse) });
+      if (url.includes('ipapi.co')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
+      return Promise.reject(new Error('Unknown'));
+    });
+
+    const { result } = renderHook(() => useSituation());
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(result.current.trafficError).toBe('Traffic data temporarily unavailable');
+  });
+
+  it('handles non-JSON traffic error body (HTML 502)', async () => {
+    global.fetch = vi.fn(url => {
+      if (url.includes('/api/traffic')) {
+        return Promise.resolve({
+          ok: false, status: 502,
+          json: () => Promise.reject(new Error('Unexpected token <')),
+        });
+      }
+      if (url.includes('/api/flights')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockFlightsResponse) });
+      if (url.includes('ipapi.co')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockGeoResponse) });
+      return Promise.reject(new Error('Unknown'));
+    });
+
+    const { result } = renderHook(() => useSituation());
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(result.current.traffic).toBeNull();
+    expect(result.current.trafficError).toBe('Traffic data temporarily unavailable');
+  });
+
   it('handles geo API failure by using world city fallback', async () => {
     global.fetch = vi.fn(url => {
       if (url.includes('ipapi.co')) return Promise.reject(new Error('Geo error'));

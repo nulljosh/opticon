@@ -582,7 +582,11 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
       if (!result.success) setImportError(result.error);
     } catch (err) {
       setStatementFiles([]);
-      setImportError(err?.message || 'Failed to load saved statements');
+      if (err?.message?.includes('401')) {
+        setImportError(null);
+      } else {
+        setImportError('Could not load saved statements');
+      }
     } finally {
       setStatementLoading(false);
     }

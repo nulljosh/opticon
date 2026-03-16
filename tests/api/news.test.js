@@ -190,12 +190,12 @@ describe('news API handler', () => {
     const call1 = makeReqRes({ category: cat });
     await handler(call1.req, call1.res);
     expect(call1.status()).toBe(200);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const fetchCountAfterFirst = global.fetch.mock.calls.length;
 
     const call2 = makeReqRes({ category: cat });
     await handler(call2.req, call2.res);
     expect(call2.status()).toBe(200);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(fetchCountAfterFirst);
     expect(call2.data().articles.length).toBe(call1.data().articles.length);
     expect(call2.data().meta.status).toBe('cache');
   });

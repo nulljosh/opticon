@@ -12,12 +12,21 @@ async function refreshStoredStatements(kv, statements) {
 
   const refreshed = await Promise.all(
     statements.map(async (statement) => {
-      const storedFile = await kv.get(`statement-file:${statement.id}`);
-      if (!storedFile?.contentBase64) return statement;
+      // Skip re-parsing if spendingMonth already exists and is valid
+      if (statement?.spendingMonth?.month && statement?.spendingMonth?.total != null) {
+        return statement;
+      }
+      try {
+        const storedFile = await kv.get(`statement-file:${statement.id}`);
+        if (!storedFile?.contentBase64) return statement;
 
-      const buffer = Buffer.from(storedFile.contentBase64, 'base64');
-      const { spendingMonth } = await summarizeStatementBuffer(buffer, statement.filename);
-      return { ...statement, spendingMonth };
+        const buffer = Buffer.from(storedFile.contentBase64, 'base64');
+        const { spendingMonth } = await summarizeStatementBuffer(buffer, statement.filename);
+        return { ...statement, spendingMonth };
+      } catch {
+        // Don't let one bad statement kill the entire list
+        return statement;
+      }
     })
   );
 

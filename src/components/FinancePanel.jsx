@@ -265,6 +265,9 @@ function SpendingChart({ spending, t, totalIncome, totalExpenses }) {
       })
     : [];
   const savingsPath = savingsPoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const savingsArea = savingsPoints.length > 1
+    ? `${savingsPath} L ${savingsPoints[savingsPoints.length - 1].x} ${chartBottom} L ${savingsPoints[0].x} ${chartBottom} Z`
+    : '';
 
   const firstTotal = actual[0]?.total || 0;
   const lastTotal = actual[actual.length - 1]?.total || 0;
@@ -318,6 +321,7 @@ function SpendingChart({ spending, t, totalIncome, totalExpenses }) {
         ))}
         <path d={actualArea} fill="url(#spendGrad)" />
         {forecastBand && <path d={forecastBand} fill="url(#forecastGrad)" />}
+        {showSavings && savingsArea && <path d={savingsArea} fill="url(#savingsGrad)" />}
         {showSavings && savingsPath && (
           <path
             d={savingsPath}

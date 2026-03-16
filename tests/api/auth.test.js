@@ -255,7 +255,7 @@ describe('Auth API', () => {
     it('should rate limit repeated attempts', async () => {
       seedUser();
 
-      for (let attempt = 1; attempt <= 5; attempt++) {
+      for (let attempt = 1; attempt <= 15; attempt++) {
         const { req, res } = createReqRes({
           action: 'login',
           body: { email: 'user@example.com', password: 'wrongpass' },
@@ -301,6 +301,7 @@ describe('Auth API', () => {
           tier: 'free',
           stripeCustomerId: null,
           watchlist: null,
+          avatarUrl: null,
         },
       });
     });

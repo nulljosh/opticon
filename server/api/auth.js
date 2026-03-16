@@ -4,20 +4,23 @@ import crypto from 'crypto';
 import { parseCookies, getSessionUser, errorResponse } from './auth-helpers.js';
 import { supabaseRequest, supabaseConfigured } from './supabase.js';
 
-// In-memory rate limiter for login attempts
-const loginAttempts = new Map();
 const RATE_LIMIT_WINDOW = 5 * 60 * 1000; // 5 minutes
 const RATE_LIMIT_MAX = 15;
 
-function checkRateLimit(ip) {
+async function checkRateLimit(kv, ip) {
   const now = Date.now();
-  const entry = loginAttempts.get(ip);
+  const key = `ratelimit:${ip}`;
+  const entry = await kv.get(key);
+
   if (!entry || now - entry.firstAttempt > RATE_LIMIT_WINDOW) {
-    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    await kv.set(key, { count: 1, firstAttempt: now }, { ex: RATE_LIMIT_WINDOW / 1000 });
     return true;
   }
+
   if (entry.count >= RATE_LIMIT_MAX) return false;
-  entry.count++;
+
+  const next = { count: entry.count + 1, firstAttempt: entry.firstAttempt };
+  await kv.set(key, next, { ex: RATE_LIMIT_WINDOW / 1000 });
   return true;
 }
 
@@ -198,7 +201,7 @@ export default async function handler(req, res) {
   // POST: login
   if (action === 'login') {
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-    if (!checkRateLimit(clientIp)) {
+    if (!(await checkRateLimit(kv, clientIp))) {
       return errorResponse(res, 429, 'Too many login attempts. Try again in 15 minutes.');
     }
 

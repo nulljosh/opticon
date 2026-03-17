@@ -135,6 +135,7 @@ function createMarker(maplibregl, map, markersArray, css, title, data, lon, lat,
 function LiveMapBackdrop({ dark, mapLayers, onMapReady }) {
   const storedGeo = loadStoredGeo();
   const initPos = storedGeo || DEFAULT_CENTER;
+  const initZoom = storedGeo ? CACHE_DETAIL_ZOOM : 10.6;
 
 
   const containerRef = useRef(null);
@@ -183,7 +184,11 @@ function LiveMapBackdrop({ dark, mapLayers, onMapReady }) {
           setUserPosition(next);
           setLocLabel(storedGeo.label || 'Recent location');
           setGeoState('cached');
-          doFlyTo({ center: [next.lon, next.lat], zoom: CACHE_DETAIL_ZOOM, offset: [0, 120], duration: 700 });
+          // Skip flyTo if map already initialized at storedGeo (no visible jump)
+          const cur = centerRef.current;
+          if (Math.abs(cur.lat - next.lat) > 0.001 || Math.abs(cur.lon - next.lon) > 0.001) {
+            doFlyTo({ center: [next.lon, next.lat], zoom: CACHE_DETAIL_ZOOM, offset: [0, 120], duration: 700 });
+          }
         }, 1500)
       : null;
 
@@ -277,7 +282,7 @@ function LiveMapBackdrop({ dark, mapLayers, onMapReady }) {
             ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
             : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
           center: [initCenter.lon, initCenter.lat],
-          zoom: 10.6,
+          zoom: initZoom,
           interactive: true,
           attributionControl: false,
         });

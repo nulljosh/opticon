@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Card } from './ui';
 import { usePortfolio } from '../hooks/usePortfolio';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, compactCurrency } from '../utils/formatting';
 import { normalizeSpendingMonths } from '../utils/financeData';
 import { buildSpendingForecast } from '../utils/spendingForecast';
 
@@ -52,14 +52,10 @@ function monthLabelShort(value) {
   return value.replace(' 20', " '");
 }
 
-function compactCurrency(value) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-    notation: value >= 1000 ? 'compact' : 'standard',
-  }).format(value);
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
 
 function ActionMenu({ t, font, actions }) {
   const [open, setOpen] = useState(false);
@@ -145,7 +141,7 @@ function PieChart({ data, size = 160, t }) {
   const total = data.reduce((sum, entry) => sum + entry.value, 0);
   if (total <= 0) return null;
 
-  const colors = ['#0071e3', '#30D158', '#FF453A', '#FF9F0A', '#BF5AF2', '#64D2FF', '#FF375F', '#FFD60A'];
+  const colors = Object.values(CAT_COLORS);
   let angle = 0;
 
   const slices = data.map((entry, index) => {
@@ -259,7 +255,7 @@ function StackedBarChart({ spending, t }) {
         {categories.map((cat) => (
           <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: CAT_COLORS[cat] || '#888' }} />
-            <span style={{ color: t.textSecondary }}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
+            <span style={{ color: t.textSecondary }}>{capitalize(cat)}</span>
           </div>
         ))}
       </div>
@@ -271,25 +267,23 @@ function DebtPayoffProjection({ debt, surplus, t }) {
   if (!debt || debt.length === 0 || surplus <= 0) return null;
 
   const sorted = [...debt].sort((a, b) => a.balance - b.balance);
-  let remaining = surplus;
   const projections = [];
   let cumulativeMonths = 0;
 
   for (const entry of sorted) {
     if (entry.balance <= 0) continue;
     const minPay = entry.minPayment || 0;
-    const extraPay = Math.max(0, remaining - minPay);
+    const extraPay = Math.max(0, surplus - minPay);
     const totalPay = minPay + extraPay;
     const months = totalPay > 0 ? Math.ceil(entry.balance / totalPay) : Infinity;
     cumulativeMonths += months;
     projections.push({ name: entry.name, balance: entry.balance, months, cumulativeMonths, totalPay });
-    remaining = surplus;
   }
 
   return (
     <div>
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: t.textTertiary, marginBottom: 12 }}>
-        Debt Payoff Projection (Avalanche)
+        Debt Payoff Projection (Snowball)
       </div>
       {projections.map((proj, index) => (
         <div key={proj.name || index} style={{ marginBottom: 12 }}>
@@ -300,7 +294,7 @@ function DebtPayoffProjection({ debt, surplus, t }) {
           <div style={{ fontSize: 11, color: t.textSecondary, marginTop: 2 }}>
             ~{proj.months === Infinity ? '--' : proj.months} months at {formatCurrency(proj.totalPay)}/mo
           </div>
-          <ProgressBar value={proj.months === Infinity ? 0 : 1} max={1} color={t.green} t={t} />
+          <ProgressBar value={proj.months === Infinity ? 0 : proj.months} max={Math.max(...projections.map(p => p.months === Infinity ? 0 : p.months), 1)} color={t.green} t={t} />
         </div>
       ))}
       <div style={{ fontSize: 12, fontWeight: 600, color: t.green, marginTop: 8 }}>
@@ -632,6 +626,7 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
   const [statementFiles, setStatementFiles] = useState([]);
   const [statementLoading, setStatementLoading] = useState(false);
   const [statementUploading, setStatementUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [isEditingPortfolio, setIsEditingPortfolio] = useState(false);
   const [portfolioDraft, setPortfolioDraft] = useState(null);
   const [activeScenarios, setActiveScenarios] = useState([]);
@@ -759,7 +754,9 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
     setImportError(null);
     setStatementUploading(true);
     try {
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress({ current: i + 1, total: files.length, filename: file.name });
         const contentBase64 = await fileToBase64(file);
         const response = await fetch('/api/statements?action=upload', {
           method: 'POST',
@@ -777,6 +774,7 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
       setImportError(err?.message || 'Upload failed');
     } finally {
       setStatementUploading(false);
+      setUploadProgress(null);
     }
   }, [refreshStatements]);
 
@@ -1189,7 +1187,9 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                   <button onClick={() => statementInputRef.current?.click()} disabled={statementUploading} style={pillButtonStyle}>
-                    {statementUploading ? 'Uploading…' : 'Upload PDFs'}
+                    {statementUploading && uploadProgress
+                      ? `Uploading ${uploadProgress.current}/${uploadProgress.total}: ${uploadProgress.filename}`
+                      : statementUploading ? 'Uploading…' : 'Upload PDFs'}
                   </button>
                 </div>
                 {statementLoading ? (
@@ -1267,7 +1267,7 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                       {isExpanded && sortedCats.map(([category, amount]) => (
                         <div key={category} style={{ marginBottom: 6 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: t.textSecondary, marginBottom: 2 }}>
-                            <span>{category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                            <span>{capitalize(category)}</span>
                             <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                               {formatCurrency(amount)} ({entry.total > 0 ? Math.round(amount / entry.total * 100) : 0}%)
                             </span>
@@ -1277,7 +1277,7 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
                       ))}
                       {!isExpanded && sortedCats.slice(0, 3).map(([category, amount]) => (
                         <div key={category} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: t.textSecondary, padding: '2px 0' }}>
-                          <span>{category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                          <span>{capitalize(category)}</span>
                           <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                             {formatCurrency(amount)} ({entry.total > 0 ? Math.round(amount / entry.total * 100) : 0}%)
                           </span>

@@ -9,3 +9,12 @@ export function formatCurrency(n, currency = 'USD') {
   if (Math.abs(n) >= 1e3) return `${prefix}${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return `${prefix}${n.toFixed(2)}`;
 }
+
+export function compactCurrency(value) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+    notation: value >= 1000 ? 'compact' : 'standard',
+  }).format(value);
+}

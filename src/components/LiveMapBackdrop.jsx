@@ -119,11 +119,12 @@ function hasSource(data) {
   return Boolean(data?.source?.trim() && /^https?:\/\//.test(data?.link));
 }
 
-function createMarker(maplibregl, map, markersArray, css, title, data, lon, lat, onSelect) {
+function createMarker(maplibregl, map, markersArray, css, title, data, lon, lat, onSelect, layerType) {
   if (!hasSource(data)) return;
   const el = document.createElement('div');
   el.style.cssText = css;
   if (title) el.title = title;
+  if (layerType) el._layerType = layerType;
   el.addEventListener('mouseenter', () => onSelect(data));
   el.addEventListener('click', (e) => { e.stopPropagation(); onSelect(data); });
   markersArray.push(
@@ -131,11 +132,11 @@ function createMarker(maplibregl, map, markersArray, css, title, data, lon, lat,
   );
 }
 
-function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady }) {
+function LiveMapBackdrop({ dark, mapLayers, onMapReady }) {
   const storedGeo = loadStoredGeo();
-  const initPos = DEFAULT_CENTER;
+  const initPos = storedGeo || DEFAULT_CENTER;
 
-  const [mapLegendOpen, setMapLegendOpen] = useState(false);
+
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -355,62 +356,46 @@ function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady }) {
 
   // User pin + local pulse -- render immediately on map load, no API dependency
   const userMarkersRef = useRef([]);
-  const prevUserPosRef = useRef(null);
-  const prevLocLabelRef = useRef('');
-  const prevCenterForPulseRef = useRef(null);
   const prevPayloadRef = useRef('');
+  const maplibreRef = useRef(null);
+
+  // Cache maplibre-gl at module level to avoid re-importing in every effect
+  useEffect(() => {
+    import('maplibre-gl').then(m => { maplibreRef.current = m.default; });
+  }, []);
 
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstanceRef.current || !maplibreRef.current) return;
 
-    const posChanged = !prevUserPosRef.current ||
-      prevUserPosRef.current.lat !== userPosition?.lat ||
-      prevUserPosRef.current.lon !== userPosition?.lon;
-    const labelChanged = prevLocLabelRef.current !== locLabel;
-    const centerChanged = !prevCenterForPulseRef.current ||
-      Math.abs(prevCenterForPulseRef.current.lat - center.lat) > 0.001 ||
-      Math.abs(prevCenterForPulseRef.current.lon - center.lon) > 0.001;
+    userMarkersRef.current.forEach(m => m.remove());
+    userMarkersRef.current = [];
 
-    if (!posChanged && !labelChanged && !centerChanged) return;
+    const maplibregl = maplibreRef.current;
+    const addUserMarker = (css, title, data, lon, lat) =>
+      createMarker(maplibregl, mapInstanceRef.current, userMarkersRef.current, css, title, data, lon, lat, setSelected);
 
-    prevUserPosRef.current = userPosition ? { lat: userPosition.lat, lon: userPosition.lon } : null;
-    prevLocLabelRef.current = locLabel;
-    prevCenterForPulseRef.current = { lat: center.lat, lon: center.lon };
+    if (userPosition) {
+      addUserMarker(
+        'width:14px;height:21px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 28 42\'><defs><radialGradient id=\'rg\' cx=\'40%25\' cy=\'35%25\' r=\'60%25\'><stop offset=\'0\' stop-color=\'%23ff6961\'/><stop offset=\'1\' stop-color=\'%23cc0000\'/></radialGradient><filter id=\'ds\'><feDropShadow dx=\'0\' dy=\'1.5\' stdDeviation=\'1.5\' flood-opacity=\'0.35\'/></filter></defs><ellipse cx=\'14\' cy=\'40\' rx=\'5\' ry=\'1.8\' fill=\'%23000\' opacity=\'.2\'/><line x1=\'14\' y1=\'22\' x2=\'14\' y2=\'39\' stroke=\'%23888\' stroke-width=\'2\' stroke-linecap=\'round\'/><circle cx=\'14\' cy=\'13\' r=\'12\' fill=\'url(%23rg)\' filter=\'url(%23ds)\'/><circle cx=\'11\' cy=\'10\' r=\'3.5\' fill=\'white\' opacity=\'.45\'/></svg>");background-size:contain;background-repeat:no-repeat;cursor:pointer;',
+        'you',
+        { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: `https://www.openstreetmap.org/?mlat=${userPosition.lat}&mlon=${userPosition.lon}#map=14/${userPosition.lat}/${userPosition.lon}` },
+        userPosition.lon, userPosition.lat
+      );
 
-    (async () => {
-      try {
-        const maplibregl = (await import('maplibre-gl')).default;
-        userMarkersRef.current.forEach(m => m.remove());
-        userMarkersRef.current = [];
+      addUserMarker(
+        'width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,0.45);animation:pulse-cyan 2s infinite;',
+        'local activity',
+        { type: 'local', title: 'LOCAL ACTIVITY', detail: `Live local pulse near ${locLabel}`, level: 'local', source: 'Local search', link: `https://www.google.com/search?q=${encodeURIComponent(`events near ${locLabel}`)}` },
+        userPosition.lon + 0.006, userPosition.lat + 0.004
+      );
+    }
 
-        const addUserMarker = (css, title, data, lon, lat) =>
-          createMarker(maplibregl, mapInstanceRef.current, userMarkersRef.current, css, title, data, lon, lat, setSelected);
-
-        if (userPosition) {
-          addUserMarker(
-            'width:14px;height:21px;background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 28 42\'><defs><radialGradient id=\'rg\' cx=\'40%25\' cy=\'35%25\' r=\'60%25\'><stop offset=\'0\' stop-color=\'%23ff6961\'/><stop offset=\'1\' stop-color=\'%23cc0000\'/></radialGradient><filter id=\'ds\'><feDropShadow dx=\'0\' dy=\'1.5\' stdDeviation=\'1.5\' flood-opacity=\'0.35\'/></filter></defs><ellipse cx=\'14\' cy=\'40\' rx=\'5\' ry=\'1.8\' fill=\'%23000\' opacity=\'.2\'/><line x1=\'14\' y1=\'22\' x2=\'14\' y2=\'39\' stroke=\'%23888\' stroke-width=\'2\' stroke-linecap=\'round\'/><circle cx=\'14\' cy=\'13\' r=\'12\' fill=\'url(%23rg)\' filter=\'url(%23ds)\'/><circle cx=\'11\' cy=\'10\' r=\'3.5\' fill=\'white\' opacity=\'.45\'/></svg>");background-size:contain;background-repeat:no-repeat;cursor:pointer;',
-            'you',
-            { type: 'location', title: 'You', detail: locLabel, level: 'local', source: geoState === 'granted' ? 'Browser Geolocation' : 'IP Geolocation', link: `https://www.openstreetmap.org/?mlat=${userPosition.lat}&mlon=${userPosition.lon}#map=14/${userPosition.lat}/${userPosition.lon}` },
-            userPosition.lon, userPosition.lat
-          );
-        }
-
-        addUserMarker(
-          'width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,0.45);animation:pulse-cyan 2s infinite;',
-          'local activity',
-          { type: 'local', title: 'LOCAL ACTIVITY', detail: `Live local pulse near ${locLabel}`, level: 'local', source: 'Local search', link: `https://www.google.com/search?q=${encodeURIComponent(`events near ${locLabel}`)}` },
-          center.lon + 0.006, center.lat + 0.004
-        );
-      } catch {
-        // ignore user marker failures
-      }
-    })();
     return () => { userMarkersRef.current.forEach(m => m.remove()); userMarkersRef.current = []; };
-  }, [userPosition, center.lat, center.lon, locLabel, geoState, mapLoaded]);
+  }, [userPosition, locLabel, geoState, mapLoaded]);
 
   // API-dependent markers
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstanceRef.current || !maplibreRef.current) return;
 
     const payloadKey = JSON.stringify({
       i: payload.incidents.length,
@@ -425,115 +410,108 @@ function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady }) {
     if (prevPayloadRef.current === payloadKey) return;
     prevPayloadRef.current = payloadKey;
 
-    (async () => {
-      try {
-        const maplibregl = (await import('maplibre-gl')).default;
-        markersRef.current.forEach(m => m.remove());
-        markersRef.current = [];
+    const maplibregl = maplibreRef.current;
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
 
-        const addMarker = (css, title, data, lon, lat) =>
-          createMarker(maplibregl, mapInstanceRef.current, markersRef.current, css, title, data, lon, lat, setSelected);
+    const addMarker = (css, title, data, lon, lat, layerType) =>
+      createMarker(maplibregl, mapInstanceRef.current, markersRef.current, css, title, data, lon, lat, setSelected, layerType);
 
-        if (mapLayers?.incidents !== false) {
-          payload.incidents.slice(0, 25).forEach((inc) => {
-            if (inc.lon == null || inc.lat == null) return;
-            addMarker(
-              'width:44px;height:6px;border-radius:999px;background:repeating-linear-gradient(90deg,#f59e0b 0 7px,#fbbf24 7px 14px);border:1px solid rgba(0,0,0,0.22);transform:rotate(-22deg);box-shadow:0 0 0 0 rgba(245,158,11,0.35);animation:pulse-amber 1.8s infinite;',
-              inc.description || inc.type,
-              { type: 'construction', title: (inc.type || 'construction').toUpperCase(), detail: inc.description || 'Road/area incident', level: 'local', source: 'OpenStreetMap / Overpass', link: mapsLink(inc.lat, inc.lon) },
-              inc.lon, inc.lat
-            );
-          });
-        }
+    payload.incidents.slice(0, 25).forEach((inc) => {
+      if (inc.lon == null || inc.lat == null) return;
+      addMarker(
+        'width:44px;height:6px;border-radius:999px;background:repeating-linear-gradient(90deg,#f59e0b 0 7px,#fbbf24 7px 14px);border:1px solid rgba(0,0,0,0.22);transform:rotate(-22deg);box-shadow:0 0 0 0 rgba(245,158,11,0.35);animation:pulse-amber 1.8s infinite;',
+        inc.description || inc.type,
+        { type: 'construction', title: (inc.type || 'construction').toUpperCase(), detail: inc.description || 'Road/area incident', level: 'local', source: 'OpenStreetMap / Overpass', link: mapsLink(inc.lat, inc.lon) },
+        inc.lon, inc.lat, 'incidents'
+      );
+    });
 
-        if (mapLayers?.traffic !== false) {
-          payload.trafficIncidents.slice(0, 20).forEach((inc) => {
-            const p = inc.position;
-            if (!p || p.lon == null || p.lat == null) return;
-            addMarker(
-              `width:48px;height:6px;border-radius:999px;background:${trafficColor(inc)};border:1px solid rgba(0,0,0,0.2);transform:rotate(18deg);box-shadow:0 0 0 0 rgba(249,115,22,0.35);animation:pulse-amber 1.6s infinite;`,
-              inc.description || inc.type || 'traffic incident',
-              { type: 'traffic', title: (inc.type || 'traffic').toUpperCase(), detail: inc.description || 'Traffic incident', level: 'local', source: 'Traffic feed / fallback model', link: mapsLink(p.lat, p.lon) },
-              p.lon, p.lat
-            );
-          });
-        }
+    payload.trafficIncidents.slice(0, 20).forEach((inc) => {
+      const p = inc.position;
+      if (!p || p.lon == null || p.lat == null) return;
+      addMarker(
+        `width:48px;height:6px;border-radius:999px;background:${trafficColor(inc)};border:1px solid rgba(0,0,0,0.2);transform:rotate(18deg);box-shadow:0 0 0 0 rgba(249,115,22,0.35);animation:pulse-amber 1.6s infinite;`,
+        inc.description || inc.type || 'traffic incident',
+        { type: 'traffic', title: (inc.type || 'traffic').toUpperCase(), detail: inc.description || 'Traffic incident', level: 'local', source: 'Traffic feed / fallback model', link: mapsLink(p.lat, p.lon) },
+        p.lon, p.lat, 'traffic'
+      );
+    });
 
-        if (mapLayers?.earthquakes !== false) {
-          payload.earthquakes.slice(0, 12).forEach((eq) => {
-            if (eq.lon == null || eq.lat == null) return;
-            const size = Math.max(10, Math.min(18, (eq.mag || 0) * 2.4));
-            addMarker(
-              `width:${size}px;height:${size}px;border-radius:50%;background:rgba(239,68,68,0.78);box-shadow:0 0 0 0 rgba(239,68,68,0.5);animation:pulse-red 1.9s infinite;`,
-              `M${eq.mag} ${eq.place || ''}`,
-              { type: 'seismic', title: `M${eq.mag?.toFixed?.(1) ?? eq.mag}`, detail: eq.place || 'Earthquake', level: (eq.mag || 0) >= 6 ? 'high' : (eq.mag || 0) >= 4 ? 'elevated' : 'monitor', source: 'USGS Earthquake Catalog', link: eq.url || 'https://earthquake.usgs.gov/earthquakes/map/' },
-              eq.lon, eq.lat
-            );
-          });
-        }
+    payload.earthquakes.slice(0, 12).forEach((eq) => {
+      if (eq.lon == null || eq.lat == null) return;
+      const size = Math.max(10, Math.min(18, (eq.mag || 0) * 2.4));
+      addMarker(
+        `width:${size}px;height:${size}px;border-radius:50%;background:rgba(239,68,68,0.78);box-shadow:0 0 0 0 rgba(239,68,68,0.5);animation:pulse-red 1.9s infinite;`,
+        `M${eq.mag} ${eq.place || ''}`,
+        { type: 'seismic', title: `M${eq.mag?.toFixed?.(1) ?? eq.mag}`, detail: eq.place || 'Earthquake', level: (eq.mag || 0) >= 6 ? 'high' : (eq.mag || 0) >= 4 ? 'elevated' : 'monitor', source: 'USGS Earthquake Catalog', link: eq.url || 'https://earthquake.usgs.gov/earthquakes/map/' },
+        eq.lon, eq.lat, 'earthquakes'
+      );
+    });
 
-        if (mapLayers?.news !== false) {
-          payload.events.slice(0, 16).forEach((ev, i) => {
-            const kw = geoKeywordMatch(ev.title);
-            // Spread unmatched events in a ring around user's position (visible at neighborhood zoom)
-            const angle = (i / 16) * 2 * Math.PI;
-            const r = 0.018 + (i % 3) * 0.012;
-            const target = kw || {
-              lat: center.lat + Math.sin(angle) * r,
-              lon: center.lon + Math.cos(angle) * r,
-              label: locLabel,
-            };
-            addMarker(
-              'width:9px;height:9px;border-radius:50%;background:#22D3EE;box-shadow:0 0 0 0 rgba(34,211,238,0.5);animation:pulse-cyan 2.2s infinite;',
-              `${target.label}: ${ev.title}`,
-              { type: 'event', title: ev.country ? `[${ev.country}] ${target.label}` : target.label, detail: ev.title, level: 'global', source: 'GDELT / News feed', link: ev.url || 'https://www.gdeltproject.org/' },
-              target.lon, target.lat
-            );
-          });
+    payload.events.slice(0, 16).forEach((ev, i) => {
+      const kw = geoKeywordMatch(ev.title);
+      const angle = (i / 16) * 2 * Math.PI;
+      const r = 0.018 + (i % 3) * 0.012;
+      const target = kw || {
+        lat: center.lat + Math.sin(angle) * r,
+        lon: center.lon + Math.cos(angle) * r,
+        label: locLabel,
+      };
+      addMarker(
+        'width:9px;height:9px;border-radius:50%;background:#22D3EE;box-shadow:0 0 0 0 rgba(34,211,238,0.5);animation:pulse-cyan 2.2s infinite;',
+        `${target.label}: ${ev.title}`,
+        { type: 'event', title: ev.country ? `[${ev.country}] ${target.label}` : target.label, detail: ev.title, level: 'global', source: 'GDELT / News feed', link: ev.url || 'https://www.gdeltproject.org/' },
+        target.lon, target.lat, 'news'
+      );
+    });
 
-          payload.newsArticles.slice(0, 12).forEach((article, i) => {
-            let target = null;
-            if (typeof article.lat === 'number' && typeof article.lon === 'number') {
-              target = { lat: article.lat, lon: article.lon, label: article.source || 'News' };
-            } else {
-              target = geoKeywordMatch(article.title);
-            }
-            if (!target) {
-              const angle = (i / 12) * 2 * Math.PI;
-              const r = 0.026 + (i % 3) * 0.014;
-              target = { lat: center.lat + Math.sin(angle) * r, lon: center.lon + Math.cos(angle) * r, label: 'Global' };
-            }
-            const pubTime = article.publishedAt ? new Date(article.publishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-            const detail = [article.source, pubTime].filter(Boolean).join(' · ');
-            addMarker(
-              'width:8px;height:8px;border-radius:50%;background:#60A5FA;box-shadow:0 0 0 0 rgba(96,165,250,0.5);animation:pulse-blue 2.1s infinite;',
-              article.title,
-              { type: 'news', title: article.title || 'News', detail: detail || 'News article', level: 'global', source: 'GDELT News', link: article.url || 'https://www.gdeltproject.org/' },
-              target.lon, target.lat
-            );
-          });
-        }
-
-        if (mapLayers?.predictions !== false) {
-          payload.markets.forEach((m) => {
-            const p = geoKeywordMatch(m.question);
-            if (!p) return;
-            const prob = typeof m.probability === 'number' ? m.probability : 0.5;
-            const conf = Math.max(prob, 1 - prob);
-            const size = conf > 0.9 ? 12 : conf > 0.75 ? 10 : 8;
-            addMarker(
-              `width:${size}px;height:${size}px;border-radius:50%;background:${prob >= 0.5 ? '#22C55E' : '#F43F5E'};box-shadow:0 0 0 0 rgba(34,197,94,0.4);animation:pulse-cyan 2.4s infinite;`,
-              `${Math.round(prob * 100)}% · ${m.question || 'market'}`,
-              { type: 'prediction', title: `${Math.round(prob * 100)}% ${prob >= 0.5 ? 'YES' : 'NO'}`, detail: m.question || 'Prediction market', level: p.label, source: 'Polymarket', link: `https://polymarket.com/event/${m.eventSlug || m.slug}` },
-              p.lon, p.lat
-            );
-          });
-        }
-      } catch {
-        // ignore map marker failures
+    payload.newsArticles.slice(0, 12).forEach((article, i) => {
+      let target = null;
+      if (typeof article.lat === 'number' && typeof article.lon === 'number') {
+        target = { lat: article.lat, lon: article.lon, label: article.source || 'News' };
+      } else {
+        target = geoKeywordMatch(article.title);
       }
-    })();
-  }, [center.lat, center.lon, payload, mapLayers, mapLoaded]);
+      if (!target) {
+        const angle = (i / 12) * 2 * Math.PI;
+        const r = 0.026 + (i % 3) * 0.014;
+        target = { lat: center.lat + Math.sin(angle) * r, lon: center.lon + Math.cos(angle) * r, label: 'Global' };
+      }
+      const pubTime = article.publishedAt ? new Date(article.publishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const detail = [article.source, pubTime].filter(Boolean).join(' · ');
+      addMarker(
+        'width:8px;height:8px;border-radius:50%;background:#60A5FA;box-shadow:0 0 0 0 rgba(96,165,250,0.5);animation:pulse-blue 2.1s infinite;',
+        article.title,
+        { type: 'news', title: article.title || 'News', detail: detail || 'News article', level: 'global', source: 'GDELT News', link: article.url || 'https://www.gdeltproject.org/' },
+        target.lon, target.lat, 'news'
+      );
+    });
+
+    payload.markets.forEach((m) => {
+      const p = geoKeywordMatch(m.question);
+      if (!p) return;
+      const prob = typeof m.probability === 'number' ? m.probability : 0.5;
+      const conf = Math.max(prob, 1 - prob);
+      const size = conf > 0.9 ? 12 : conf > 0.75 ? 10 : 8;
+      addMarker(
+        `width:${size}px;height:${size}px;border-radius:50%;background:${prob >= 0.5 ? '#22C55E' : '#F43F5E'};box-shadow:0 0 0 0 rgba(34,197,94,0.4);animation:pulse-cyan 2.4s infinite;`,
+        `${Math.round(prob * 100)}% · ${m.question || 'market'}`,
+        { type: 'prediction', title: `${Math.round(prob * 100)}% ${prob >= 0.5 ? 'YES' : 'NO'}`, detail: m.question || 'Prediction market', level: p.label, source: 'Polymarket', link: `https://polymarket.com/event/${m.eventSlug || m.slug}` },
+        p.lon, p.lat, 'predictions'
+      );
+    });
+  }, [center.lat, center.lon, payload, mapLoaded]);
+
+  // Toggle marker visibility when layers change (no teardown/recreate)
+  useEffect(() => {
+    for (const marker of markersRef.current) {
+      const el = marker.getElement();
+      const type = el?._layerType;
+      if (!type) continue;
+      el.style.display = mapLayers?.[type] === false ? 'none' : '';
+    }
+  }, [mapLayers]);
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -547,47 +525,6 @@ function LiveMapBackdrop({ dark, mapLayers, setMapLayers, onMapReady }) {
         ref={mapRef}
         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'auto', filter: dark ? 'saturate(1.12) brightness(0.9)' : 'saturate(1.1) brightness(0.95)' }}
       />
-      {mapLayers && setMapLayers && (
-        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 4 }}>
-          <button
-            onClick={() => setMapLegendOpen(o => !o)}
-            style={{
-              width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.85)',
-              color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)',
-              backdropFilter: 'blur(12px)', fontSize: 16, lineHeight: 1,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
-              transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }}
-          >
-            {mapLegendOpen ? '\u00d7' : '\u2261'}
-          </button>
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4,
-            maxHeight: mapLegendOpen ? 300 : 0, opacity: mapLegendOpen ? 1 : 0, overflow: 'hidden',
-            transition: 'max-height 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease',
-          }}>
-            {Object.entries(mapLayers).map(([key, enabled]) => (
-              <button
-                key={key}
-                onClick={() => setMapLayers(prev => ({ ...prev, [key]: !prev[key] }))}
-                style={{
-                  padding: '4px 10px', borderRadius: 100, fontSize: 10, fontWeight: 600,
-                  border: 'none', cursor: 'pointer',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
-                  background: enabled ? (dark ? '#FFFFFF' : '#111111') : (dark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.92)'),
-                  color: enabled ? (dark ? '#000000' : '#ffffff') : (dark ? 'rgba(255,255,255,0.6)' : 'rgba(60,60,67,0.6)'),
-                  backdropFilter: 'blur(12px)', textTransform: 'uppercase', letterSpacing: '0.05em',
-                  transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                }}
-              >
-                {key}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       <button
         onClick={() => {
           if (geoState !== 'granted' || !userPosition) { requestLocation(); return; }

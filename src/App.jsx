@@ -1291,7 +1291,6 @@ const reset = useCallback(() => {
         <LiveMapBackdrop
           dark={dark}
           mapLayers={mapLayers}
-          setMapLayers={setMapLayers}
           onMapReady={handleMapReady}
         />
         {/* Floating mobile nav */}
@@ -1396,7 +1395,6 @@ const reset = useCallback(() => {
                 pmExits={pmExits}
                 mapFlyTo={(params) => mapInstanceRef.current?.flyTo(params)}
                 mapLayers={mapLayers}
-                setMapLayers={setMapLayers}
               />
             )}
             {activeTab === 'settings' && (
@@ -1478,7 +1476,6 @@ const reset = useCallback(() => {
               pmExits={pmExits}
               mapFlyTo={(params) => mapInstanceRef.current?.flyTo(params)}
               mapLayers={mapLayers}
-              setMapLayers={setMapLayers}
             />
           )}
           {activeTab === 'settings' && (

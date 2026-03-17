@@ -28,7 +28,6 @@ export default function SituationMonitor({
   pmExits = 0,
   mapFlyTo,
   mapLayers,
-  setMapLayers,
 }) {
   const [showPmEdges, setShowPmEdges] = useState(true);
   const [showTrades, setShowTrades] = useState(false);
@@ -84,27 +83,6 @@ export default function SituationMonitor({
           </span>
         </div>
       </div>
-
-      {/* Layer toggles */}
-      {mapLayers && setMapLayers && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-          {Object.entries(mapLayers).map(([key, enabled]) => (
-            <button
-              key={key}
-              onClick={() => setMapLayers(prev => ({ ...prev, [key]: !prev[key] }))}
-              style={{
-                padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 600,
-                border: enabled ? `1.5px solid ${t.cyan}` : `1px solid ${t.border}`,
-                background: enabled ? `${t.cyan}18` : 'transparent',
-                color: enabled ? t.cyan : t.textTertiary,
-                cursor: 'pointer', fontFamily: font, textTransform: 'capitalize',
-              }}
-            >
-              {key}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Macro rows */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>

@@ -5,12 +5,6 @@ export const DEMO_HOLDINGS = [
 ];
 
 export const DEMO_ACCOUNTS = [
-  {
-    name: 'Vacation',
-    type: 'chequing',
-    balance: 52.60,
-    currency: 'CAD',
-  },
 ];
 
 export const DEMO_BUDGET = {

@@ -1398,7 +1398,7 @@ const reset = useCallback(() => {
               />
             )}
             {activeTab === 'settings' && (
-              <Settings dark={dark} setDark={setDark} t={t} mapLayers={mapLayers} setMapLayers={setMapLayers} />
+              <Settings dark={dark} setDark={setDark} t={t} mapLayers={mapLayers} setMapLayers={setMapLayers} user={user} logout={logout} subscription={subscription} />
             )}
           </>
         )}
@@ -1479,7 +1479,7 @@ const reset = useCallback(() => {
             />
           )}
           {activeTab === 'settings' && (
-            <Settings dark={dark} setDark={setDark} t={t} mapLayers={mapLayers} setMapLayers={setMapLayers} />
+            <Settings dark={dark} setDark={setDark} t={t} mapLayers={mapLayers} setMapLayers={setMapLayers} user={user} logout={logout} subscription={subscription} />
           )}
         </div>
       )}

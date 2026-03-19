@@ -147,7 +147,7 @@ function LiveMapBackdrop({ dark, mapLayers, onMapReady }) {
   const pendingFlyRef = useRef(null);
 
   const [center, setCenter] = useState(initPos);
-  const [userPosition, setUserPosition] = useState(null);
+  const [userPosition, setUserPosition] = useState(storedGeo ? { lat: storedGeo.lat, lon: storedGeo.lon } : null);
   const [locLabel, setLocLabel] = useState('Locating…');
   const [geoState, setGeoState] = useState('checking');
   const [payload, setPayload] = useState({ incidents: [], trafficIncidents: [], earthquakes: [], events: [], markets: [], newsArticles: [] });
@@ -199,7 +199,11 @@ function LiveMapBackdrop({ dark, mapLayers, onMapReady }) {
         const next = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         setCenter(next);
         setUserPosition(next);
-        doFlyTo({ center: [next.lon, next.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 850 });
+        // Skip flyTo if map already centered near this position (avoids jump on iOS)
+        const cur = centerRef.current;
+        if (Math.abs(cur.lat - next.lat) > 0.005 || Math.abs(cur.lon - next.lon) > 0.005) {
+          doFlyTo({ center: [next.lon, next.lat], zoom: GEO_DETAIL_ZOOM, offset: [0, 120], duration: 850 });
+        }
         setLocLabel('Current location');
         setGeoState('granted');
         persistGeo(next, 'Current location');

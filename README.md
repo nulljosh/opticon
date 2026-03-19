@@ -5,21 +5,17 @@
 
 Live map and market app. Prices, news, and local activity on one screen.
 
-[Live site](https://opticon.heyitsmejosh.com)
-
-## Architecture
-
-![Architecture](architecture.svg)
+[Live](https://opticon.heyitsmejosh.com) -- [Architecture](architecture.svg)
 
 ## Features
 
-- **Map** -- MapLibre GL with geolocation, dark/light tiles, city hubs
+- **Map** -- MapLibre GL, geolocation, dark/light tiles, city hubs
 - **Data layers** -- Flights, traffic, earthquakes, weather, GDELT news, Polymarket
-- **Trading simulator** -- 167 assets, Kelly sizing, Fibonacci levels, PnL tracking
-- **Portfolio** -- Holdings, cash accounts, budget, debt payoff projections, goals, spending analysis with PDF upload, income scenario overlays, stacked category charts, drill-down breakdowns
+- **Trading simulator** -- 167 assets, Kelly sizing, Fibonacci levels, PnL
+- **Portfolio** -- Holdings, budgets, debt payoff, spending analysis (PDF upload), income overlays
 - **Ticker bar** -- Live scrolling prices
-- **Auth** -- bcrypt + KV sessions, Stripe billing (Free/$20/$50), Apple Pay
-- **PWA** -- Offline-capable service worker
+- **Auth + billing** -- bcrypt/KV sessions, Stripe (Free/$20/$50), Apple Pay
+- **PWA** -- Offline service worker
 - **Companions** -- opticon-ios, opticon-macos
 
 ## Run
@@ -31,9 +27,15 @@ npm test -- --run
 npm run build
 ```
 
-## Deploy
+Deploy: Vercel (Cloudflare migration planned for API).
 
-Production on Vercel.
+## Roadmap
+
+- [ ] Cloudflare API migration
+- [ ] Watchlist with alerts
+- [ ] Multi-account portfolio aggregation
+- [ ] Historical spending trends
+- [ ] macOS companion feature parity
 
 ## License
 

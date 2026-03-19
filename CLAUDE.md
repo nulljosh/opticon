@@ -1,8 +1,4 @@
-# Opticon Notes
-
-## What It Is
-
-Live map and market app. Map is the main view. Top bar shows prices. Side panel (or mobile sheet) shows the active tab.
+# Opticon
 
 ## Rules
 
@@ -11,22 +7,12 @@ Live map and market app. Map is the main view. Top bar shows prices. Side panel 
 - Mobile-first layout, same-tab toggle opens/closes sheet
 - Simulator stays centered, does not push the map
 
-## Running
+## Run
 
 ```bash
-npm install
-npm run dev
+npm install && npm run dev
 npm test -- --run
 npm run build
 ```
 
-## Deploy
-
-Production on Vercel. Cloudflare is future migration path (API first).
-
-## Features
-
-- Income scenario overlays on spending chart (+$500, +$1000, x2)
-- Stacked category bar charts
-- Expandable monthly breakdowns with per-category progress bars
-- Debt payoff projections (avalanche method)
+Deploy: Vercel. Cloudflare migration planned (API first).

@@ -16,15 +16,35 @@ export async function readPdfText(filePath) {
   }
 
   const buffer = await readFile(filePath);
-  const { default: pdfParse } = await import('pdf-parse');
-  const parsed = await pdfParse(buffer);
-  return parsed?.text || '';
+  const { PDFParse } = await import('pdf-parse');
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    return result?.text || '';
+  } catch (err) {
+    console.warn(`[PDF] Failed to parse ${filePath}: ${err.message}`);
+    return '';
+  } finally {
+    await parser.destroy();
+  }
 }
 
 export async function summarizeStatementBuffer(buffer, filename) {
-  const { default: pdfParse } = await import('pdf-parse');
-  const parsed = await pdfParse(buffer);
-  const transactions = parseStatementText(parsed?.text || '');
+  let text = '';
+  try {
+    const { PDFParse } = await import('pdf-parse');
+    const parser = new PDFParse({ data: buffer });
+    try {
+      const result = await parser.getText();
+      text = result?.text || '';
+    } finally {
+      await parser.destroy();
+    }
+  } catch (err) {
+    console.warn(`[PDF] Failed to parse ${filename}: ${err.message}`);
+    return { transactions: [], spendingMonth: null };
+  }
+  const transactions = parseStatementText(text);
   return {
     transactions,
     spendingMonth: summarizeTransactions(transactions, filename),

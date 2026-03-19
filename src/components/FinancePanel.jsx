@@ -872,12 +872,6 @@ export default function FinancePanel({ dark, t, stocks, isAuthenticated }) {
         <input ref={statementInputRef} type="file" accept="application/pdf,.pdf" multiple onChange={handleStatementUpload} style={{ display: 'none' }} />
       </div>
 
-      {importError && (
-        <div style={{ margin: '8px 16px', padding: '8px 12px', background: 'rgba(255,69,58,0.15)', borderRadius: 8, fontSize: 11, color: t.red }}>
-          {importError}
-        </div>
-      )}
-
       <div style={{ padding: '16px 16px 12px' }}>
         <div style={{ fontSize: 11, color: t.textTertiary, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Net Worth</div>
         <div style={{ fontSize: 'clamp(28px, 6vw, 40px)', fontWeight: 700, color: netWorth >= 0 ? t.text : t.red, fontVariantNumeric: 'tabular-nums', letterSpacing: '-1.5px', lineHeight: 1 }}>

@@ -12,8 +12,8 @@ async function refreshStoredStatements(kv, statements) {
 
   const refreshed = await Promise.all(
     statements.map(async (statement) => {
-      // Skip re-parsing if spendingMonth already exists and is valid
-      if (statement?.spendingMonth?.month && statement?.spendingMonth?.total != null) {
+      // Skip re-parsing if spendingMonth and transactions already exist
+      if (statement?.spendingMonth?.month && statement?.spendingMonth?.total != null && Array.isArray(statement?.transactions) && statement.transactions.length > 0) {
         return statement;
       }
       try {
@@ -21,8 +21,8 @@ async function refreshStoredStatements(kv, statements) {
         if (!storedFile?.contentBase64) return statement;
 
         const buffer = Buffer.from(storedFile.contentBase64, 'base64');
-        const { spendingMonth } = await summarizeStatementBuffer(buffer, statement.filename);
-        return { ...statement, spendingMonth };
+        const { spendingMonth, transactions } = await summarizeStatementBuffer(buffer, statement.filename);
+        return { ...statement, spendingMonth, transactions: transactions || [] };
       } catch {
         // Don't let one bad statement kill the entire list
         return statement;
@@ -75,13 +75,14 @@ export default async function handler(req, res) {
       }
 
       const buffer = Buffer.from(contentBase64, 'base64');
-      const { spendingMonth } = await summarizeStatementBuffer(buffer, filename);
+      const { spendingMonth, transactions } = await summarizeStatementBuffer(buffer, filename);
       const statements = await kv.get(statementsKey);
       const nextRecord = {
         id: `${session.userId}:${Date.now()}:${safeName(filename)}`,
         filename,
         uploadedAt: new Date().toISOString(),
         spendingMonth,
+        transactions: transactions || [],
       };
       const nextStatements = [...(Array.isArray(statements) ? statements : [])]
         .filter((item) => item.filename !== filename && item?.spendingMonth?.month !== spendingMonth.month)

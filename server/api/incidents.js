@@ -65,12 +65,17 @@ export default async function handler(req, res) {
   if (lamin !== undefined) {
     bbox = { lamin: +lamin, lomin: +lomin, lamax: +lamax, lomax: +lomax };
   } else if (lat && lon) {
-    const d = 1;
+    const d = 0.15;
     bbox = { lamin: +lat - d, lomin: +lon - d, lamax: +lat + d, lomax: +lon + d };
   } else {
     return res.status(400).json({ error: 'Provide lat/lon or bbox params' });
   }
-  const result = await fetchIncidents(bbox);
+  let result = await fetchIncidents(bbox);
+  if (result.incidents.length === 0 && lat && lon) {
+    const dWide = 0.5;
+    const wideBbox = { lamin: +lat - dWide, lomin: +lon - dWide, lamax: +lat + dWide, lomax: +lon + dWide };
+    result = await fetchIncidents(wideBbox);
+  }
   res.setHeader('Cache-Control', 'public, max-age=600');
   return res.status(200).json({
     incidents: result.incidents,
